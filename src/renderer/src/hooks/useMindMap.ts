@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import { MindMapNode, MindMapState, NodeIcon, MindMapTheme } from '../types/mindmap'
+import { MindMapNode, MindMapState, NodeIcon, MindMapTheme, MindMapPreferences } from '../types/mindmap'
 
 // Color palette for different depth levels
 const LEVEL_COLORS = [
@@ -12,6 +12,55 @@ const LEVEL_COLORS = [
 
 const getColorForDepth = (depth: number): string => {
   return LEVEL_COLORS[Math.min(depth, LEVEL_COLORS.length - 1)]
+}
+
+const PREFERENCES_STORAGE_KEY = 'mindmap.preferences.v1'
+
+const DEFAULT_PREFERENCES: MindMapPreferences = {
+  theme: 'light',
+  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  fontSize: 15
+}
+
+const clampFontSize = (size: number): number => Math.max(10, Math.min(size, 28))
+
+const loadStoredPreferences = (): MindMapPreferences => {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return { ...DEFAULT_PREFERENCES }
+  }
+
+  try {
+    const raw = window.localStorage.getItem(PREFERENCES_STORAGE_KEY)
+    if (!raw) return { ...DEFAULT_PREFERENCES }
+
+    const parsed = JSON.parse(raw) as Partial<MindMapPreferences>
+
+    const theme: MindMapTheme = parsed.theme === 'dark' ? 'dark' : 'light'
+    const fontFamily = typeof parsed.fontFamily === 'string' && parsed.fontFamily.trim().length > 0
+      ? parsed.fontFamily
+      : DEFAULT_PREFERENCES.fontFamily
+    const fontSize = typeof parsed.fontSize === 'number'
+      ? clampFontSize(parsed.fontSize)
+      : DEFAULT_PREFERENCES.fontSize
+
+    return {
+      theme,
+      fontFamily,
+      fontSize
+    }
+  } catch (error) {
+    console.warn('Failed to load stored preferences, using defaults', error)
+    return { ...DEFAULT_PREFERENCES }
+  }
+}
+
+const persistPreferencesToStorage = (preferences: MindMapPreferences) => {
+  if (typeof window === 'undefined' || !window.localStorage) return
+  try {
+    window.localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(preferences))
+  } catch (error) {
+    console.warn('Failed to persist preferences', error)
+  }
 }
 
 const createInitialNode = (): MindMapNode => ({
@@ -32,6 +81,8 @@ export const useMindMap = () => {
   const [state, setState] = useState<MindMapState>(() => {
     const initialRoot = createInitialNode()
     const initialSnapshot = JSON.parse(JSON.stringify(initialRoot)) as MindMapNode
+    const storedPreferences = loadStoredPreferences()
+
     return {
       root: initialRoot,
       selectedNodeId: initialRoot.id,
@@ -39,15 +90,15 @@ export const useMindMap = () => {
       historyIndex: 0,
       zoom: 1,
       pan: { x: 0, y: 0 },
-      preferences: {
-        theme: 'light',
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        fontSize: 15
-      }
+      preferences: storedPreferences
     }
   })
 
   const currentFilePathRef = useRef<string | null>(null)
+
+  const persistPreferences = useCallback((preferences: MindMapPreferences) => {
+    persistPreferencesToStorage(preferences)
+  }, [])
 
   const saveToHistory = useCallback((newRoot: MindMapNode) => {
     setState(prev => {
@@ -330,35 +381,47 @@ export const useMindMap = () => {
   }, [])
 
   const setTheme = useCallback((theme: MindMapTheme) => {
-    setState(prev => ({
-      ...prev,
-      preferences: {
+    setState(prev => {
+      const preferences = {
         ...prev.preferences,
         theme
       }
-    }))
-  }, [])
+      persistPreferences(preferences)
+      return {
+        ...prev,
+        preferences
+      }
+    })
+  }, [persistPreferences])
 
   const setFontFamily = useCallback((fontFamily: string) => {
-    setState(prev => ({
-      ...prev,
-      preferences: {
+    setState(prev => {
+      const preferences = {
         ...prev.preferences,
         fontFamily
       }
-    }))
-  }, [])
+      persistPreferences(preferences)
+      return {
+        ...prev,
+        preferences
+      }
+    })
+  }, [persistPreferences])
 
   const setFontSize = useCallback((fontSize: number) => {
-    const clamped = Math.max(10, Math.min(fontSize, 28))
-    setState(prev => ({
-      ...prev,
-      preferences: {
+    const clamped = clampFontSize(fontSize)
+    setState(prev => {
+      const preferences = {
         ...prev.preferences,
         fontSize: clamped
       }
-    }))
-  }, [])
+      persistPreferences(preferences)
+      return {
+        ...prev,
+        preferences
+      }
+    })
+  }, [persistPreferences])
 
   const resetMindMap = useCallback(() => {
     const initialRoot = createInitialNode()
