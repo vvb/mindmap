@@ -34,8 +34,8 @@ jobs:
         with:
           name: macos-build
           path: |
-            release/*.dmg
-            release/*.zip
+            dist/*.dmg
+            dist/*.zip
           retention-days: 7
 
       - name: Create Release
@@ -43,8 +43,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            release/*.dmg
-            release/*.zip
+            dist/*.dmg
+            dist/*.zip
           draft: false
           prerelease: false
         env:
