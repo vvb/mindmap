@@ -139,6 +139,9 @@ function App(): React.JSX.Element {
           if (node.collapsed === undefined) {
             node.collapsed = false
           }
+          if (node.manualPosition === undefined) {
+            node.manualPosition = false
+          }
           if (!node.icon || !NODE_ICON_VALUES.includes(node.icon)) {
             node.icon = 'none'
           }

@@ -46,6 +46,8 @@ const LINK_COLOR_MAP: Record<string, string> = {
 }
 
 const COLLAPSE_TOGGLE_RADIUS = 12
+const AUTO_LAYOUT_HORIZONTAL_GAP = 80
+const TEXT_LEFT_PADDING = 6
 
 export const MindMap: React.FC<MindMapProps> = ({
   root,
@@ -98,10 +100,11 @@ export const MindMap: React.FC<MindMapProps> = ({
 
     // Create horizontal tree layout (left to right like FreeMind)
     const treeLayout = d3.tree<MindMapNode>()
-      .nodeSize([80, 250]) // [vertical spacing between siblings, horizontal spacing to children]
+      .nodeSize([60, 250]) // [vertical spacing between siblings, horizontal spacing to children]
       .separation((a, b) => {
-        // More spacing between different branches
-        return a.parent === b.parent ? 1 : 1.5
+        // Increase spacing between different branches to prevent overlap
+        // Siblings get 1x spacing, cousins get 2x spacing
+        return a.parent === b.parent ? 1 : 2
       })
 
     const treeData = treeLayout(hierarchy) as D3Node
@@ -135,37 +138,68 @@ export const MindMap: React.FC<MindMapProps> = ({
     })
 
     // Helper to calculate link path
-    const getPath = (source: D3Node, target: D3Node) => {
-      const metrics = metricsMap.get(source.data.id)
-      // For text-only nodes (depth >= 3), start link after the text
-      // The text starts at x=5 (relative to node), so we need to clear the text width
-      // hitWidth is roughly text width + padding
-      const sourceX = source.depth >= 3
-        ? source.y + (metrics ? metrics.hitWidth : 80)
-        : source.y
-      
-      return `M ${sourceX},${source.x}
-              C ${(sourceX + target.y!) / 2},${source.x}
-                ${(sourceX + target.y!) / 2},${target.x}
-                ${target.y},${target.x}`
+    const getRightExtent = (node: D3Node) => {
+      const metrics = metricsMap.get(node.data.id)
+      if (node.depth >= 3) {
+        return metrics ? metrics.hitWidth : 80
+      }
+      const width = metrics ? metrics.boxWidth : 120
+      return width / 2
     }
 
-    // Check if any node has custom positions (has been manually positioned)
-    const hasCustomPositions = nodes.some(node =>
-      node.data.x !== undefined && node.data.y !== undefined &&
-      node.data.x !== 0 && node.data.y !== 0
-    )
+    const getLeftExtent = (node: D3Node) => {
+      if (node.depth >= 3) {
+        return TEXT_LEFT_PADDING
+      }
+      const metrics = metricsMap.get(node.data.id)
+      const width = metrics ? metrics.boxWidth : 120
+      return width / 2
+    }
+
+    const getRightEdge = (node: D3Node) => node.y + getRightExtent(node)
+    const getLeftEdge = (node: D3Node) => node.y - getLeftExtent(node)
+
+    const getPath = (source: D3Node, target: D3Node) => {
+      const sourceX = getRightEdge(source)
+      const targetX = getLeftEdge(target)
+
+      return `M ${sourceX},${source.x}
+              C ${(sourceX + targetX) / 2},${source.x}
+                ${(sourceX + targetX) / 2},${target.x}
+                ${targetX},${target.x}`
+    }
+
+    const hasManualPositions = nodes.some(node => node.data.manualPosition)
+
+    if (!hasManualPositions && nodes.length > 0) {
+      const rootNode = nodes[0]
+      rootNode.y = 0
+
+      const assignHorizontalPositions = (node: D3Node) => {
+        const childBaseLeft = getRightEdge(node) + AUTO_LAYOUT_HORIZONTAL_GAP
+        node.children?.forEach(child => {
+          const childNode = child as D3Node
+          const leftExtent = getLeftExtent(childNode)
+          childNode.y = childBaseLeft + leftExtent
+          assignHorizontalPositions(childNode)
+        })
+      }
+
+      assignHorizontalPositions(rootNode)
+    }
 
     nodes.forEach(node => {
-      // If this specific node has a custom position, use it
-      if (hasCustomPositions && node.data.x !== undefined && node.data.y !== undefined &&
-          (node.data.x !== 0 || node.data.y !== 0 || node === nodes[0])) {
+      if (node.data.manualPosition && node.data.x !== undefined && node.data.y !== undefined) {
         node.x = node.data.x
         node.y = node.data.y
       } else {
-        // Use tree layout position and store it
-        // Don't overwrite if it's already set to avoid resetting on every render
-        if (node.data.x === undefined || node.data.x === 0) {
+        if (!hasManualPositions) {
+          node.data.x = node.x
+          node.data.y = node.y
+        } else if (node.data.x !== undefined && node.data.y !== undefined) {
+          node.x = node.data.x
+          node.y = node.data.y
+        } else {
           node.data.x = node.x
           node.data.y = node.y
         }

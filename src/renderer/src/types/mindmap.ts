@@ -16,6 +16,7 @@ export interface MindMapNode {
   children: MindMapNode[]
   collapsed?: boolean
   icon?: NodeIcon
+  manualPosition?: boolean
 }
 
 export const NODE_ICON_VALUES: readonly NodeIcon[] = [

@@ -22,7 +22,8 @@ const createInitialNode = (): MindMapNode => ({
   color: getColorForDepth(0),
   children: [],
   collapsed: false,
-  icon: 'none'
+  icon: 'none',
+  manualPosition: false
 })
 
 const MAX_HISTORY = 50
@@ -110,7 +111,8 @@ export const useMindMap = () => {
         color: getColorForDepth(newNodeDepth),
         children: [],
         collapsed: false,
-        icon: 'none'
+        icon: 'none',
+        manualPosition: false
       }
       parent.collapsed = false
       parent.children.push(newNode)
@@ -142,7 +144,8 @@ export const useMindMap = () => {
         color: getColorForDepth(siblingDepth),
         children: [],
         collapsed: false,
-        icon: 'none'
+        icon: 'none',
+        manualPosition: false
       }
 
       // Find the index of the current node and insert after it
@@ -260,6 +263,7 @@ export const useMindMap = () => {
     if (node) {
       node.x = x
       node.y = y
+      node.manualPosition = true
       // Don't save to history for position changes (too many history entries)
       setState(prev => ({ ...prev, root: newRoot }))
     }
@@ -269,22 +273,22 @@ export const useMindMap = () => {
     const resetPositions = (node: MindMapNode) => {
       node.x = 0
       node.y = 0
+      node.manualPosition = false
       node.children.forEach(child => resetPositions(child))
     }
 
     const newRoot = JSON.parse(JSON.stringify(state.root))
     resetPositions(newRoot)
 
-    // Calculate centering pan offset if viewport dimensions provided
+    // Calculate pan offset to position root on left-center
     let centerPan = { x: 0, y: 0 }
     if (viewportWidth && viewportHeight) {
-      // Estimate graph bounds based on tree structure
-      // For a horizontal tree, approximate width and height
-      const estimatedWidth = 800  // Rough estimate
-      const estimatedHeight = 400 // Rough estimate
+      // Position root node on the left side (with some margin) and vertically centered
+      // This maximizes space for the tree to grow to the right
+      const leftMargin = 100  // Space from left edge
       centerPan = {
-        x: (viewportWidth - estimatedWidth) / 2,
-        y: (viewportHeight - estimatedHeight) / 2
+        x: leftMargin,
+        y: viewportHeight / 2
       }
     }
 
