@@ -45,11 +45,18 @@ const LINK_COLOR_MAP: Record<string, string> = {
   '#E0F7FA': '#0097A7'  // Cyan -> Cyan
 }
 
-const COLLAPSE_TOGGLE_RADIUS = 5
+const COLLAPSE_TOGGLE_RADIUS = 9
 const AUTO_LAYOUT_HORIZONTAL_GAP = 80
 const TEXT_NODE_HORIZONTAL_GAP = 40
-const TEXT_LEFT_PADDING = 4
+const TEXT_LEFT_PADDING = 2
 const TEXT_NODE_RIGHT_PADDING = 8
+
+const MAX_BOX_WIDTH = 440
+const MIN_BOX_WIDTH = 120
+const BOX_HORIZONTAL_PADDING = 30
+const MIN_BOX_HEIGHT = 50
+const BOX_VERTICAL_PADDING = 24
+const LINE_HEIGHT = 20
 
 const hexToRgb = (value: string) => {
   const match = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value.trim())
@@ -163,6 +170,75 @@ export const MindMap: React.FC<MindMapProps> = ({
       return width
     }
 
+    const wrapTextForBoxNode = (text: string, depth: number) => {
+      const words = text.split(/\s+/).filter(Boolean)
+      if (words.length === 0) {
+        return {
+          lines: [''],
+          maxLineWidth: 0
+        }
+      }
+
+      const maxContentWidth = MAX_BOX_WIDTH - BOX_HORIZONTAL_PADDING
+      const lines: string[] = []
+      const lineWidths: number[] = []
+
+      let currentLine = ''
+
+      const pushCurrentLine = () => {
+        const lineText = currentLine.trim()
+        const width = measureTextWidth(lineText, depth)
+        lines.push(lineText)
+        lineWidths.push(width)
+        currentLine = ''
+      }
+
+      const pushSegment = (segment: string) => {
+        const textSegment = segment.trim()
+        if (textSegment.length === 0) return
+        const width = measureTextWidth(textSegment, depth)
+        lines.push(textSegment)
+        lineWidths.push(width)
+      }
+
+      words.forEach(word => {
+        const candidate = currentLine.length > 0 ? `${currentLine} ${word}` : word
+        const candidateWidth = measureTextWidth(candidate, depth)
+        if (candidateWidth <= maxContentWidth || currentLine.length === 0) {
+          currentLine = candidate
+        } else {
+          if (currentLine.length > 0) {
+            pushCurrentLine()
+          }
+
+          let segment = ''
+          for (const char of word) {
+            const nextSegment = segment.length > 0 ? `${segment}${char}` : char
+            const nextWidth = measureTextWidth(nextSegment, depth)
+            if (nextWidth <= maxContentWidth || segment.length === 0) {
+              segment = nextSegment
+            } else {
+              pushSegment(segment)
+              segment = char
+            }
+          }
+
+          currentLine = segment
+        }
+      })
+
+      if (currentLine.length > 0) {
+        pushCurrentLine()
+      }
+
+      const maxLineWidth = lineWidths.length > 0 ? Math.max(...lineWidths) : 0
+
+      return {
+        lines,
+        maxLineWidth
+      }
+    }
+
     const descendantCountMap = new Map<string, number>()
     const computeDescendantCounts = (node: MindMapNode): number => {
       const total = node.children.reduce((acc, child) => acc + 1 + computeDescendantCounts(child), 0)
@@ -174,7 +250,14 @@ export const MindMap: React.FC<MindMapProps> = ({
     // Use stored positions or tree layout positions
     const nodes = treeData.descendants() as D3Node[]
 
-    const metricsMap = new Map<string, { displayText: string; boxWidth: number; hitWidth: number; layoutWidth: number }>()
+    const metricsMap = new Map<string, {
+      displayText: string
+      boxWidth: number
+      boxHeight: number
+      hitWidth: number
+      layoutWidth: number
+      lines?: string[]
+    }>()
 
     nodes.forEach(node => {
       const iconSymbol = node.data.icon ? ICON_SYMBOLS[node.data.icon] ?? '' : ''
@@ -187,17 +270,22 @@ export const MindMap: React.FC<MindMapProps> = ({
         const hitWidth = Math.max(layoutWidth + 12, 80)
         metricsMap.set(node.data.id, {
           displayText,
-          boxWidth: Math.max(layoutWidth, 60),
+          boxWidth: layoutWidth,
+          boxHeight: MIN_BOX_HEIGHT,
           hitWidth,
           layoutWidth
         })
       } else {
-        const paddedWidth = Math.max(120, Math.min(320, textWidth + 30))
+        const { lines, maxLineWidth } = wrapTextForBoxNode(displayText, node.depth)
+        const paddedWidth = Math.max(MIN_BOX_WIDTH, Math.min(MAX_BOX_WIDTH, maxLineWidth + BOX_HORIZONTAL_PADDING))
+        const boxHeight = Math.max(MIN_BOX_HEIGHT, lines.length * LINE_HEIGHT + BOX_VERTICAL_PADDING)
         metricsMap.set(node.data.id, {
           displayText,
           boxWidth: paddedWidth,
+          boxHeight,
           hitWidth: paddedWidth,
-          layoutWidth: paddedWidth
+          layoutWidth: paddedWidth,
+          lines
         })
       }
     })
@@ -316,13 +404,20 @@ export const MindMap: React.FC<MindMapProps> = ({
         const metrics = metricsMap.get(d.data.id)
         return metrics ? metrics.boxWidth : 120
       })
-      .attr('height', 50)
+      .attr('height', d => {
+        const metrics = metricsMap.get(d.data.id)
+        return metrics ? metrics.boxHeight : MIN_BOX_HEIGHT
+      })
       .attr('x', d => {
         const metrics = metricsMap.get(d.data.id)
         const width = metrics ? metrics.boxWidth : 120
         return -width / 2
       })
-      .attr('y', -25)
+      .attr('y', d => {
+        const metrics = metricsMap.get(d.data.id)
+        const height = metrics ? metrics.boxHeight : MIN_BOX_HEIGHT
+        return -height / 2
+      })
       .attr('rx', 8)
       .attr('ry', 8)
       .attr('fill', d => d.data.color || (isDark ? '#1E293B' : '#E3F2FD'))
@@ -345,15 +440,10 @@ export const MindMap: React.FC<MindMapProps> = ({
       .style('display', d => d.depth >= 3 ? 'block' : 'none')
 
     // Add text labels (for non-editing nodes)
-    nodeElements.append('text')
+    const textSelection = nodeElements.append('text')
       .attr('class', 'node-text')
-      .attr('dy', d => d.depth >= 3 ? 4 : 5)
       .attr('text-anchor', d => d.depth >= 3 ? 'start' : 'middle')
       .attr('dx', d => d.depth >= 3 ? TEXT_LEFT_PADDING + 1 : 0)
-      .text(d => {
-        const metrics = metricsMap.get(d.data.id)
-        return metrics ? metrics.displayText : d.data.text
-      })
       .attr('fill', d => getTextColor(d))
       .style('font-family', fontFamily)
       .style('font-size', d => {
@@ -370,6 +460,38 @@ export const MindMap: React.FC<MindMapProps> = ({
       .style('text-decoration', d => (d.depth >= 3 && d.data.id === selectedNodeId ? 'underline' : 'none'))
       .style('pointer-events', 'none')
       .style('display', d => d.data.id === editingNodeId ? 'none' : 'block')
+
+    textSelection.each(function(d) {
+      const metrics = metricsMap.get(d.data.id)
+      const selection = d3.select(this)
+      selection.selectAll('tspan').remove()
+
+      if (!metrics) {
+        selection.text(d.data.text)
+        return
+      }
+
+      if (d.depth >= 3) {
+        selection.attr('dy', 4)
+        selection.text(metrics.displayText)
+        return
+      }
+
+      const lines = metrics.lines ?? [metrics.displayText]
+      const totalTextHeight = lines.length * LINE_HEIGHT
+      const initialDy = -totalTextHeight / 2 + LINE_HEIGHT / 2
+      selection.attr('dy', initialDy)
+      selection.attr('dx', 0)
+      selection.text(null)
+
+      lines.forEach((line, idx) => {
+        selection
+          .append('tspan')
+          .attr('x', 0)
+          .attr('dy', idx === 0 ? 0 : LINE_HEIGHT)
+          .text(line)
+      })
+    })
 
     const toggleGroups = nodeElements
       .filter(d => d.data.children.length > 0)
@@ -437,9 +559,12 @@ export const MindMap: React.FC<MindMapProps> = ({
         const metrics = metricsMap.get(d.data.id)
         const isTextNode = d.depth >= 3
         const baseWidth = isTextNode ? (metrics?.hitWidth ?? 160) : (metrics?.boxWidth ?? 160)
+        const baseHeight = isTextNode
+          ? 32
+          : Math.max(36, (metrics?.boxHeight ?? MIN_BOX_HEIGHT) - 20)
         const xOffset = isTextNode ? -6 : -baseWidth / 2
-        const yOffset = isTextNode ? -16 : -20
-        const height = isTextNode ? 32 : 40
+        const yOffset = isTextNode ? -16 : -baseHeight / 2
+        const height = baseHeight
 
         const foreignObject = d3.select(this)
           .append('foreignObject')
