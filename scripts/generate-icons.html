@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Icon Generator</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            margin: 20px 0;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        .preview {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .preview-item {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>MindMap Icon Generator</h1>
+    <p>This will generate PNG icons from the SVG file.</p>
+    
+    <div class="preview" id="preview"></div>
+    
+    <div>
+        <button onclick="generateIcons()">Generate Icons</button>
+    </div>
+
+    <script>
+        async function loadSVG() {
+            const response = await fetch('../resources/icon.svg');
+            return await response.text();
+        }
+
+        async function generateIcons() {
+            const svgText = await loadSVG();
+            const sizes = [16, 32, 64, 128, 256, 512, 1024];
+            const preview = document.getElementById('preview');
+            preview.innerHTML = '';
+
+            for (const size of sizes) {
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+
+                const img = new Image();
+                const blob = new Blob([svgText], { type: 'image/svg+xml' });
+                const url = URL.createObjectURL(blob);
+
+                await new Promise((resolve) => {
+                    img.onload = () => {
+                        ctx.drawImage(img, 0, 0, size, size);
+                        URL.revokeObjectURL(url);
+                        
+                        // Create download link
+                        const container = document.createElement('div');
+                        container.className = 'preview-item';
+                        
+                        const previewCanvas = canvas.cloneNode();
+                        previewCanvas.getContext('2d').drawImage(canvas, 0, 0);
+                        previewCanvas.style.width = '128px';
+                        previewCanvas.style.height = '128px';
+                        
+                        const label = document.createElement('div');
+                        label.textContent = `${size}x${size}`;
+                        
+                        const downloadBtn = document.createElement('button');
+                        downloadBtn.textContent = 'Download';
+                        downloadBtn.onclick = () => {
+                            canvas.toBlob((blob) => {
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = size === 1024 ? 'icon.png' : `icon-${size}.png`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                            });
+                        };
+                        
+                        container.appendChild(previewCanvas);
+                        container.appendChild(label);
+                        container.appendChild(downloadBtn);
+                        preview.appendChild(container);
+                        
+                        resolve();
+                    };
+                    img.src = url;
+                });
+            }
+            
+            alert('Icons generated! Download the 1024x1024 version and save it as build/icon.png');
+        }
+
+        // Auto-generate on load
+        window.onload = generateIcons;
+    </script>
+</body>
+</html>
+

@@ -45,9 +45,38 @@ const LINK_COLOR_MAP: Record<string, string> = {
   '#E0F7FA': '#0097A7'  // Cyan -> Cyan
 }
 
-const COLLAPSE_TOGGLE_RADIUS = 12
+const COLLAPSE_TOGGLE_RADIUS = 5
 const AUTO_LAYOUT_HORIZONTAL_GAP = 80
-const TEXT_LEFT_PADDING = 6
+const TEXT_NODE_HORIZONTAL_GAP = 40
+const TEXT_LEFT_PADDING = 4
+const TEXT_NODE_RIGHT_PADDING = 8
+
+const hexToRgb = (value: string) => {
+  const match = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value.trim())
+  if (!match) return null
+
+  const hex = match[1].length === 3
+    ? match[1].split('').map(ch => ch + ch).join('')
+    : match[1]
+
+  const num = parseInt(hex, 16)
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255
+  }
+}
+
+const getContrastingTextColor = (background: string, isDarkTheme: boolean) => {
+  const rgb = hexToRgb(background)
+  if (!rgb) return isDarkTheme ? '#F8FAFC' : '#1F2937'
+
+  const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 255000
+
+  if (brightness >= 0.75) return '#1F2937'
+  if (brightness <= 0.35) return '#F8FAFC'
+  return isDarkTheme ? '#F8FAFC' : '#1F2937'
+}
 
 export const MindMap: React.FC<MindMapProps> = ({
   root,
@@ -67,6 +96,7 @@ export const MindMap: React.FC<MindMapProps> = ({
 }) => {
   const svgRef = useRef<SVGSVGElement>(null)
   const gRef = useRef<SVGGElement>(null)
+  const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const isDark = theme === 'dark'
 
@@ -109,6 +139,30 @@ export const MindMap: React.FC<MindMapProps> = ({
 
     const treeData = treeLayout(hierarchy) as D3Node
 
+    const getRenderedFontSize = (depth: number) => {
+      if (depth === 0) return fontSize + 2
+      if (depth === 1) return fontSize + 1
+      if (depth >= 3) return Math.max(fontSize - 1, 12)
+      return fontSize
+    }
+
+    const measurementGroup = g.append('g')
+      .attr('class', 'measurement-temporary')
+      .attr('visibility', 'hidden')
+      .style('pointer-events', 'none')
+
+    const measureTextWidth = (text: string, depth: number) => {
+      const fontPx = getRenderedFontSize(depth)
+      const textElement = measurementGroup.append('text')
+        .style('font-family', fontFamily)
+        .style('font-size', `${fontPx}px`)
+        .text(text || ' ')
+
+      const width = textElement.node()?.getBBox().width ?? (text.length * fontPx * 0.6)
+      textElement.remove()
+      return width
+    }
+
     const descendantCountMap = new Map<string, number>()
     const computeDescendantCounts = (node: MindMapNode): number => {
       const total = node.children.reduce((acc, child) => acc + 1 + computeDescendantCounts(child), 0)
@@ -120,28 +174,41 @@ export const MindMap: React.FC<MindMapProps> = ({
     // Use stored positions or tree layout positions
     const nodes = treeData.descendants() as D3Node[]
 
-    const metricsMap = new Map<string, { displayText: string; boxWidth: number; hitWidth: number }>()
+    const metricsMap = new Map<string, { displayText: string; boxWidth: number; hitWidth: number; layoutWidth: number }>()
 
     nodes.forEach(node => {
       const iconSymbol = node.data.icon ? ICON_SYMBOLS[node.data.icon] ?? '' : ''
       const baseText = node.data.text || ''
       const displayText = iconSymbol ? `${iconSymbol} ${baseText}` : baseText
-      const effectiveLength = displayText.length
+      const textWidth = measureTextWidth(displayText, node.depth)
 
-      const boxWidth = node.depth >= 3
-        ? Math.max(80, effectiveLength * 8 + 20)
-        : Math.max(120, Math.min(320, effectiveLength * 9 + 30))
-
-      const hitWidth = Math.max(80, effectiveLength * 8 + 20)
-
-      metricsMap.set(node.data.id, { displayText, boxWidth, hitWidth })
+      if (node.depth >= 3) {
+        const layoutWidth = textWidth + TEXT_NODE_RIGHT_PADDING
+        const hitWidth = Math.max(layoutWidth + 12, 80)
+        metricsMap.set(node.data.id, {
+          displayText,
+          boxWidth: Math.max(layoutWidth, 60),
+          hitWidth,
+          layoutWidth
+        })
+      } else {
+        const paddedWidth = Math.max(120, Math.min(320, textWidth + 30))
+        metricsMap.set(node.data.id, {
+          displayText,
+          boxWidth: paddedWidth,
+          hitWidth: paddedWidth,
+          layoutWidth: paddedWidth
+        })
+      }
     })
+
+    measurementGroup.remove()
 
     // Helper to calculate link path
     const getRightExtent = (node: D3Node) => {
       const metrics = metricsMap.get(node.data.id)
       if (node.depth >= 3) {
-        return metrics ? metrics.hitWidth : 80
+        return metrics ? metrics.layoutWidth : 80
       }
       const width = metrics ? metrics.boxWidth : 120
       return width / 2
@@ -176,7 +243,8 @@ export const MindMap: React.FC<MindMapProps> = ({
       rootNode.y = 0
 
       const assignHorizontalPositions = (node: D3Node) => {
-        const childBaseLeft = getRightEdge(node) + AUTO_LAYOUT_HORIZONTAL_GAP
+        const gap = node.depth >= 3 ? TEXT_NODE_HORIZONTAL_GAP : AUTO_LAYOUT_HORIZONTAL_GAP
+        const childBaseLeft = getRightEdge(node) + gap
         node.children?.forEach(child => {
           const childNode = child as D3Node
           const leftExtent = getLeftExtent(childNode)
@@ -220,7 +288,15 @@ export const MindMap: React.FC<MindMapProps> = ({
     const getTextColor = (node: D3Node) => {
       if (node.data.id === selectedNodeId) return isDark ? '#FACC15' : '#0F172A'
       if (node.depth >= 3) return node.data.color || (isDark ? '#93C5FD' : '#1B5E20')
-      return isDark ? '#E2E8F0' : '#333'
+
+      const background = node.data.color || (isDark ? '#1E293B' : '#E3F2FD')
+      const contrast = getContrastingTextColor(background, isDark)
+
+      if (node.data.collapsed && node.data.children.length > 0) {
+        return contrast
+      }
+
+      return contrast
     }
 
     // Draw nodes FIRST (so they appear on top of links in export)
@@ -273,7 +349,7 @@ export const MindMap: React.FC<MindMapProps> = ({
       .attr('class', 'node-text')
       .attr('dy', d => d.depth >= 3 ? 4 : 5)
       .attr('text-anchor', d => d.depth >= 3 ? 'start' : 'middle')
-      .attr('dx', d => d.depth >= 3 ? 5 : 0)
+      .attr('dx', d => d.depth >= 3 ? TEXT_LEFT_PADDING + 1 : 0)
       .text(d => {
         const metrics = metricsMap.get(d.data.id)
         return metrics ? metrics.displayText : d.data.text
@@ -301,11 +377,11 @@ export const MindMap: React.FC<MindMapProps> = ({
       .attr('class', 'collapse-toggle')
       .attr('transform', d => {
         if (d.depth >= 3) {
-          return `translate(${-COLLAPSE_TOGGLE_RADIUS * 2},0)`
+          return `translate(${-COLLAPSE_TOGGLE_RADIUS * 2.2},0)`
         }
         const metrics = metricsMap.get(d.data.id)
         const width = metrics ? metrics.boxWidth : 120
-        return `translate(${-width / 2 - COLLAPSE_TOGGLE_RADIUS * 1.4},0)`
+        return `translate(${-width / 2 - COLLAPSE_TOGGLE_RADIUS * 1.6},0)`
       })
       .style('cursor', 'pointer')
 
@@ -313,7 +389,7 @@ export const MindMap: React.FC<MindMapProps> = ({
       .attr('r', COLLAPSE_TOGGLE_RADIUS)
       .attr('fill', d => (d.data.collapsed ? '#FDE68A' : '#FFFFFF'))
       .attr('stroke', d => (d.data.collapsed ? '#F59E0B' : '#9CA3AF'))
-      .attr('stroke-width', 1.5)
+      .attr('stroke-width', 1.2)
       .attr('opacity', d => (d.depth === 0 ? 0.85 : 1))
 
     toggleGroups.append('text')
@@ -321,7 +397,7 @@ export const MindMap: React.FC<MindMapProps> = ({
       .attr('dominant-baseline', 'middle')
       .attr('y', 1)
       .attr('fill', '#374151')
-      .style('font-size', '14px')
+      .style('font-size', '12px')
       .style('font-weight', '700')
       .text(d => (d.data.collapsed ? '+' : '−'))
 
@@ -329,7 +405,7 @@ export const MindMap: React.FC<MindMapProps> = ({
       .attr('class', 'collapse-count')
       .attr('text-anchor', 'start')
       .attr('dominant-baseline', 'middle')
-      .attr('x', COLLAPSE_TOGGLE_RADIUS + 6)
+      .attr('x', COLLAPSE_TOGGLE_RADIUS + 5)
       .attr('y', 1)
       .attr('fill', '#6B7280')
       .style('font-size', '11px')
@@ -517,7 +593,7 @@ export const MindMap: React.FC<MindMapProps> = ({
       .attr('stroke-width', 2)
       .attr('stroke-opacity', isDark ? 0.75 : 0.8)
 
-  }, [root, selectedNodeId, editingNodeId, dimensions, onNodeClick, onStartEditing, onNodePositionChange, onToggleCollapse])
+  }, [root, selectedNodeId, editingNodeId, dimensions, onNodeClick, onStartEditing, onNodePositionChange, onToggleCollapse, fontFamily, fontSize, isDark])
 
   // Setup zoom and pan behavior (only once)
   useEffect(() => {
@@ -543,6 +619,7 @@ export const MindMap: React.FC<MindMapProps> = ({
         onPanChange({ x: event.transform.x, y: event.transform.y })
       })
 
+    zoomBehaviorRef.current = zoomBehavior
     svg.call(zoomBehavior)
     svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(pan.x, pan.y).scale(zoom))
 
@@ -562,12 +639,15 @@ export const MindMap: React.FC<MindMapProps> = ({
 
   // Apply zoom/pan changes from outside (e.g., auto-fit button)
   useEffect(() => {
-    if (!svgRef.current || !gRef.current) return
+    if (!svgRef.current) return
 
-    const g = d3.select(gRef.current)
-
-    // Only apply transform, don't set up the behavior again
-    g.attr('transform', `translate(${pan.x},${pan.y}) scale(${zoom})`)
+    const zoomBehavior = zoomBehaviorRef.current
+    if (zoomBehavior) {
+      const svg = d3.select(svgRef.current)
+      svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(pan.x, pan.y).scale(zoom))
+    } else if (gRef.current) {
+      d3.select(gRef.current).attr('transform', `translate(${pan.x},${pan.y}) scale(${zoom})`)
+    }
 
   }, [zoom, pan.x, pan.y])
 

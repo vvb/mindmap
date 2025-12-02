@@ -1,0 +1,83 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="nodeGradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffd89b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#19547b;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8"/>
+      <feOffset dx="0" dy="4" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Rounded square background -->
+  <rect width="1024" height="1024" rx="180" fill="url(#bgGradient)"/>
+  
+  <!-- Mind map structure -->
+  <!-- Central node -->
+  <circle cx="512" cy="512" r="100" fill="#ffffff" filter="url(#shadow)"/>
+  <circle cx="512" cy="512" r="90" fill="#FFE5B4" stroke="#f59e0b" stroke-width="4"/>
+  
+  <!-- Connection lines -->
+  <!-- Top branch -->
+  <path d="M 512 422 Q 512 350 450 300" stroke="#ffffff" stroke-width="6" fill="none" opacity="0.9" stroke-linecap="round"/>
+  <path d="M 450 300 L 350 250" stroke="#ffffff" stroke-width="4" fill="none" opacity="0.8" stroke-linecap="round"/>
+  <path d="M 450 300 L 400 350" stroke="#ffffff" stroke-width="4" fill="none" opacity="0.8" stroke-linecap="round"/>
+  
+  <!-- Top-right branch -->
+  <path d="M 602 512 Q 680 512 750 450" stroke="#ffffff" stroke-width="6" fill="none" opacity="0.9" stroke-linecap="round"/>
+  <path d="M 750 450 L 820 400" stroke="#ffffff" stroke-width="4" fill="none" opacity="0.8" stroke-linecap="round"/>
+  <path d="M 750 450 L 800 500" stroke="#ffffff" stroke-width="4" fill="none" opacity="0.8" stroke-linecap="round"/>
+  
+  <!-- Bottom branch -->
+  <path d="M 512 602 Q 512 680 580 750" stroke="#ffffff" stroke-width="6" fill="none" opacity="0.9" stroke-linecap="round"/>
+  <path d="M 580 750 L 650 800" stroke="#ffffff" stroke-width="4" fill="none" opacity="0.8" stroke-linecap="round"/>
+  <path d="M 580 750 L 550 820" stroke="#ffffff" stroke-width="4" fill="none" opacity="0.8" stroke-linecap="round"/>
+  
+  <!-- Left branch -->
+  <path d="M 422 512 Q 320 512 250 550" stroke="#ffffff" stroke-width="6" fill="none" opacity="0.9" stroke-linecap="round"/>
+  <path d="M 250 550 L 180 580" stroke="#ffffff" stroke-width="4" fill="none" opacity="0.8" stroke-linecap="round"/>
+  <path d="M 250 550 L 200 620" stroke="#ffffff" stroke-width="4" fill="none" opacity="0.8" stroke-linecap="round"/>
+  
+  <!-- Nodes -->
+  <!-- Top branch nodes -->
+  <circle cx="450" cy="300" r="45" fill="#E3F2FD" stroke="#4A90E2" stroke-width="3" filter="url(#shadow)"/>
+  <circle cx="350" cy="250" r="30" fill="#F3E5F5" stroke="#9C27B0" stroke-width="2"/>
+  <circle cx="400" cy="350" r="30" fill="#F3E5F5" stroke="#9C27B0" stroke-width="2"/>
+  
+  <!-- Top-right branch nodes -->
+  <circle cx="750" cy="450" r="45" fill="#E3F2FD" stroke="#4A90E2" stroke-width="3" filter="url(#shadow)"/>
+  <circle cx="820" cy="400" r="30" fill="#F3E5F5" stroke="#9C27B0" stroke-width="2"/>
+  <circle cx="800" cy="500" r="30" fill="#F3E5F5" stroke="#9C27B0" stroke-width="2"/>
+  
+  <!-- Bottom branch nodes -->
+  <circle cx="580" cy="750" r="45" fill="#E3F2FD" stroke="#4A90E2" stroke-width="3" filter="url(#shadow)"/>
+  <circle cx="650" cy="800" r="30" fill="#F3E5F5" stroke="#9C27B0" stroke-width="2"/>
+  <circle cx="550" cy="820" r="30" fill="#F3E5F5" stroke="#9C27B0" stroke-width="2"/>
+  
+  <!-- Left branch nodes -->
+  <circle cx="250" cy="550" r="45" fill="#E3F2FD" stroke="#4A90E2" stroke-width="3" filter="url(#shadow)"/>
+  <circle cx="180" cy="580" r="30" fill="#F3E5F5" stroke="#9C27B0" stroke-width="2"/>
+  <circle cx="200" cy="620" r="30" fill="#F3E5F5" stroke="#9C27B0" stroke-width="2"/>
+  
+  <!-- Brain/lightbulb icon in center -->
+  <g transform="translate(512, 512)">
+    <path d="M -25 -15 Q -25 -35 -10 -45 Q 0 -50 10 -45 Q 25 -35 25 -15 Q 25 0 20 10 L 15 25 L -15 25 L -20 10 Q -25 0 -25 -15 Z" 
+          fill="#f59e0b" opacity="0.9"/>
+    <rect x="-15" y="25" width="30" height="8" rx="2" fill="#f59e0b" opacity="0.9"/>
+    <circle cx="0" cy="-20" r="3" fill="#ffffff"/>
+  </g>
+</svg>
+
