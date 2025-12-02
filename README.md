@@ -12,9 +12,13 @@ Download the latest release for your platform:
 2. Download the latest `.dmg` file for macOS
 3. Open the downloaded `.dmg` file
 4. Drag the MindMap app to your Applications folder
-5. Launch MindMap from your Applications
+5. **Remove the quarantine attribute** (required for unsigned apps):
+   ```bash
+   xattr -cr /Applications/mindmap.app
+   ```
+6. Launch MindMap from your Applications
 
-**Note**: On first launch, you may need to right-click the app and select "Open" to bypass macOS Gatekeeper.
+**Note**: The app is currently unsigned. The `xattr` command above removes macOS Gatekeeper restrictions. Alternatively, on first launch, you can right-click the app and select "Open" to bypass the security warning.
 
 ## ✨ Features
 
