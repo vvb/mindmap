@@ -156,7 +156,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <button
           onClick={onExport}
           className={baseButton}
-          title="Export as Image"
+          title="Export as Image (Cmd+E)"
         >
           📸 Export
         </button>

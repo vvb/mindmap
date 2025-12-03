@@ -5,6 +5,7 @@ interface API {
   saveFileAs: (data: string) => Promise<{ success: boolean; filePath?: string; error?: string }>
   loadFile: () => Promise<{ success: boolean; data?: string; filePath?: string }>
   exportImage: (dataUrl: string, defaultName: string) => Promise<{ success: boolean; filePath?: string }>
+  newWindow: () => Promise<{ success: boolean }>
 }
 
 declare global {

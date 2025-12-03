@@ -241,6 +241,29 @@ function App(): React.JSX.Element {
     }
   }, [])
 
+  // Listen for menu events
+  useEffect(() => {
+    const handleMenuNew = () => handleNew()
+    const handleMenuOpen = () => handleLoad()
+    const handleMenuSave = () => handleSave()
+    const handleMenuSaveAs = () => handleSaveAs()
+    const handleMenuExport = () => handleExport()
+
+    window.electron.ipcRenderer.on('menu-new', handleMenuNew)
+    window.electron.ipcRenderer.on('menu-open', handleMenuOpen)
+    window.electron.ipcRenderer.on('menu-save', handleMenuSave)
+    window.electron.ipcRenderer.on('menu-save-as', handleMenuSaveAs)
+    window.electron.ipcRenderer.on('menu-export', handleMenuExport)
+
+    return () => {
+      window.electron.ipcRenderer.removeListener('menu-new', handleMenuNew)
+      window.electron.ipcRenderer.removeListener('menu-open', handleMenuOpen)
+      window.electron.ipcRenderer.removeListener('menu-save', handleMenuSave)
+      window.electron.ipcRenderer.removeListener('menu-save-as', handleMenuSaveAs)
+      window.electron.ipcRenderer.removeListener('menu-export', handleMenuExport)
+    }
+  }, [handleNew, handleLoad, handleSave, handleSaveAs, handleExport])
+
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -10,7 +10,7 @@ function createWindow(): void {
     width: 1400,
     height: 900,
     show: false,
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -36,10 +36,145 @@ function createWindow(): void {
   }
 }
 
+function createMenu(): void {
+  const isMac = process.platform === 'darwin'
+
+  const template: Electron.MenuItemConstructorOptions[] = [
+    // App Menu (macOS only)
+    ...(isMac ? [{
+      label: app.name,
+      submenu: [
+        { role: 'about' as const },
+        { type: 'separator' as const },
+        { role: 'services' as const },
+        { type: 'separator' as const },
+        { role: 'hide' as const },
+        { role: 'hideOthers' as const },
+        { role: 'unhide' as const },
+        { type: 'separator' as const },
+        { role: 'quit' as const }
+      ]
+    }] : []),
+    // File Menu
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Window',
+          accelerator: 'CmdOrCtrl+Shift+N',
+          click: () => {
+            createWindow()
+          }
+        },
+        { type: 'separator' as const },
+        {
+          label: 'New',
+          accelerator: 'CmdOrCtrl+N',
+          click: () => {
+            BrowserWindow.getFocusedWindow()?.webContents.send('menu-new')
+          }
+        },
+        {
+          label: 'Open...',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => {
+            BrowserWindow.getFocusedWindow()?.webContents.send('menu-open')
+          }
+        },
+        { type: 'separator' as const },
+        {
+          label: 'Save',
+          accelerator: 'CmdOrCtrl+S',
+          click: () => {
+            BrowserWindow.getFocusedWindow()?.webContents.send('menu-save')
+          }
+        },
+        {
+          label: 'Save As...',
+          accelerator: 'CmdOrCtrl+Shift+S',
+          click: () => {
+            BrowserWindow.getFocusedWindow()?.webContents.send('menu-save-as')
+          }
+        },
+        { type: 'separator' as const },
+        {
+          label: 'Export as Image...',
+          accelerator: 'CmdOrCtrl+E',
+          click: () => {
+            BrowserWindow.getFocusedWindow()?.webContents.send('menu-export')
+          }
+        },
+        { type: 'separator' as const },
+        ...(isMac ? [] : [
+          {
+            label: 'Quit',
+            accelerator: 'CmdOrCtrl+Q',
+            click: () => {
+              app.quit()
+            }
+          }
+        ])
+      ]
+    },
+    // Edit Menu
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' as const },
+        { role: 'redo' as const },
+        { type: 'separator' as const },
+        { role: 'cut' as const },
+        { role: 'copy' as const },
+        { role: 'paste' as const },
+        { role: 'delete' as const },
+        { type: 'separator' as const },
+        { role: 'selectAll' as const }
+      ]
+    },
+    // View Menu
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' as const },
+        { role: 'forceReload' as const },
+        { role: 'toggleDevTools' as const },
+        { type: 'separator' as const },
+        { role: 'resetZoom' as const },
+        { role: 'zoomIn' as const },
+        { role: 'zoomOut' as const },
+        { type: 'separator' as const },
+        { role: 'togglefullscreen' as const }
+      ]
+    },
+    // Window Menu
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' as const },
+        { role: 'zoom' as const },
+        ...(isMac ? [
+          { type: 'separator' as const },
+          { role: 'front' as const },
+          { type: 'separator' as const },
+          { role: 'window' as const }
+        ] : [
+          { role: 'close' as const }
+        ])
+      ]
+    }
+  ]
+
+  const menu = Menu.buildFromTemplate(template)
+  Menu.setApplicationMenu(menu)
+}
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  // Allow multiple instances of the app
+  app.requestSingleInstanceLock = () => true
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -144,6 +279,15 @@ app.whenReady().then(() => {
     }
     return { success: false }
   })
+
+  // Handler to create a new window
+  ipcMain.handle('new-window', () => {
+    createWindow()
+    return { success: true }
+  })
+
+  // Create the application menu
+  createMenu()
 
   createWindow()
 

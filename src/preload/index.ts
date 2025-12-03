@@ -6,7 +6,8 @@ const api = {
   saveFile: (data: string, filePath?: string) => ipcRenderer.invoke('save-file', { data, filePath }),
   saveFileAs: (data: string) => ipcRenderer.invoke('save-file-as', { data }),
   loadFile: () => ipcRenderer.invoke('load-file'),
-  exportImage: (dataUrl: string, defaultName: string) => ipcRenderer.invoke('export-image', dataUrl, defaultName)
+  exportImage: (dataUrl: string, defaultName: string) => ipcRenderer.invoke('export-image', dataUrl, defaultName),
+  newWindow: () => ipcRenderer.invoke('new-window')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
