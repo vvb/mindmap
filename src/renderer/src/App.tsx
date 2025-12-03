@@ -172,25 +172,73 @@ function App(): React.JSX.Element {
 
   // Export as image
   const handleExport = useCallback(async () => {
-    // This is a simplified version - we'll capture the SVG
     const svg = document.querySelector('svg')
     if (!svg) return
 
-    const svgData = new XMLSerializer().serializeToString(svg)
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-    const img = new Image()
+    // Get the main group element that contains all nodes
+    const mainGroup = svg.querySelector('g')
+    if (!mainGroup) return
 
-    canvas.width = svg.clientWidth
-    canvas.height = svg.clientHeight
+    try {
+      // Get the bounding box of all content
+      const bbox = mainGroup.getBBox()
 
-    img.onload = async () => {
-      ctx?.drawImage(img, 0, 0)
-      const dataUrl = canvas.toDataURL('image/png')
-      await window.api.exportImage(dataUrl, 'mindmap.png')
+      // Add padding around the content
+      const padding = 50
+      const contentWidth = bbox.width + (padding * 2)
+      const contentHeight = bbox.height + (padding * 2)
+
+      // Set a high resolution scale factor for better quality
+      const scale = 2
+      const exportWidth = contentWidth * scale
+      const exportHeight = contentHeight * scale
+
+      // Clone the SVG to modify it for export
+      const svgClone = svg.cloneNode(true) as SVGSVGElement
+
+      // Set explicit dimensions and viewBox on the clone
+      svgClone.setAttribute('width', contentWidth.toString())
+      svgClone.setAttribute('height', contentHeight.toString())
+      svgClone.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${contentWidth} ${contentHeight}`)
+
+      // Remove any transform from the main group in the clone
+      const clonedGroup = svgClone.querySelector('g')
+      if (clonedGroup) {
+        clonedGroup.removeAttribute('transform')
+      }
+
+      // Serialize the modified SVG
+      const svgData = new XMLSerializer().serializeToString(svgClone)
+
+      // Create canvas for high-resolution export
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      canvas.width = exportWidth
+      canvas.height = exportHeight
+
+      const img = new Image()
+
+      img.onload = async () => {
+        // Scale the context for high resolution
+        ctx.scale(scale, scale)
+        ctx.drawImage(img, 0, 0, contentWidth, contentHeight)
+
+        const dataUrl = canvas.toDataURL('image/png')
+        await window.api.exportImage(dataUrl, 'mindmap.png')
+      }
+
+      img.onerror = (error) => {
+        console.error('Failed to load SVG for export:', error)
+      }
+
+      // Use btoa with proper encoding for SVG
+      const base64SVG = btoa(unescape(encodeURIComponent(svgData)))
+      img.src = 'data:image/svg+xml;base64,' + base64SVG
+    } catch (error) {
+      console.error('Export failed:', error)
     }
-
-    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)))
   }, [])
 
   // Handle keyboard shortcuts
