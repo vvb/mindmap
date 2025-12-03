@@ -82,8 +82,8 @@ function App(): React.JSX.Element {
   useEffect(() => {
     document.body.classList.toggle('theme-dark', isDark)
     document.body.classList.toggle('theme-light', !isDark)
-    document.body.style.backgroundColor = isDark ? '#0f172a' : '#f8fafc'
-    document.body.style.color = isDark ? '#e2e8f0' : '#0f172a'
+    document.body.style.backgroundColor = isDark ? '#0f172a' : '#ffffff'
+    document.body.style.color = isDark ? '#e2e8f0' : '#111827'
   }, [isDark])
 
   // Save file

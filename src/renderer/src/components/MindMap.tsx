@@ -76,13 +76,14 @@ const hexToRgb = (value: string) => {
 
 const getContrastingTextColor = (background: string, isDarkTheme: boolean) => {
   const rgb = hexToRgb(background)
-  if (!rgb) return isDarkTheme ? '#F8FAFC' : '#1F2937'
+  if (!rgb) return isDarkTheme ? '#F8FAFC' : '#111827'
 
   const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 255000
 
-  if (brightness >= 0.75) return '#1F2937'
-  if (brightness <= 0.35) return '#F8FAFC'
-  return isDarkTheme ? '#F8FAFC' : '#1F2937'
+  // Use darker text in light mode for better contrast
+  if (brightness >= 0.75) return '#111827'  // Very dark gray/black for light backgrounds
+  if (brightness <= 0.35) return '#F8FAFC'  // Light text for dark backgrounds
+  return isDarkTheme ? '#F8FAFC' : '#111827'
 }
 
 export const MindMap: React.FC<MindMapProps> = ({
@@ -137,11 +138,16 @@ export const MindMap: React.FC<MindMapProps> = ({
 
     // Create horizontal tree layout (left to right like FreeMind)
     const treeLayout = d3.tree<MindMapNode>()
-      .nodeSize([60, 250]) // [vertical spacing between siblings, horizontal spacing to children]
+      .nodeSize([90, 250]) // [vertical spacing between siblings, horizontal spacing to children]
       .separation((a, b) => {
         // Increase spacing between different branches to prevent overlap
-        // Siblings get 1x spacing, cousins get 2x spacing
-        return a.parent === b.parent ? 1 : 2
+        // Siblings get 1x spacing, cousins get more spacing based on their subtree sizes
+        if (a.parent === b.parent) {
+          return 1
+        }
+        // For non-siblings, increase spacing more to prevent overlap
+        // This helps when nodes have many children
+        return 2.5
       })
 
     const treeData = treeLayout(hierarchy) as D3Node
@@ -368,14 +374,18 @@ export const MindMap: React.FC<MindMapProps> = ({
     const links = treeData.links()
 
     const getRectStroke = (node: D3Node) => {
-      if (node.data.id === selectedNodeId) return isDark ? '#FACC15' : '#4A90E2'
+      if (node.data.id === selectedNodeId) return isDark ? '#FACC15' : '#2563EB'
       if (node.data.collapsed && node.data.children.length > 0) return '#F59E0B'
-      return isDark ? '#475569' : '#999'
+      return isDark ? '#475569' : '#6B7280'
     }
 
     const getTextColor = (node: D3Node) => {
-      if (node.data.id === selectedNodeId) return isDark ? '#FACC15' : '#0F172A'
-      if (node.depth >= 3) return node.data.color || (isDark ? '#93C5FD' : '#1B5E20')
+      if (node.data.id === selectedNodeId) return isDark ? '#FACC15' : '#1E40AF'
+
+      // For level 3+ nodes (text-only nodes), use solid dark/light colors
+      if (node.depth >= 3) {
+        return isDark ? '#93C5FD' : '#1F2937'
+      }
 
       const background = node.data.color || (isDark ? '#1E293B' : '#E3F2FD')
       const contrast = getContrastingTextColor(background, isDark)
@@ -713,10 +723,10 @@ export const MindMap: React.FC<MindMapProps> = ({
         const color = targetNode.data.color
         const normalizedColor = color?.toUpperCase()
         const mappedColor = normalizedColor ? LINK_COLOR_MAP[normalizedColor] : undefined
-        return mappedColor || color || (isDark ? '#94A3B8' : '#555')
+        return mappedColor || color || (isDark ? '#94A3B8' : '#374151')
       })
       .attr('stroke-width', 2)
-      .attr('stroke-opacity', isDark ? 0.75 : 0.8)
+      .attr('stroke-opacity', isDark ? 0.75 : 0.9)
 
   }, [root, selectedNodeId, editingNodeId, dimensions, onNodeClick, onStartEditing, onNodePositionChange, onToggleCollapse, fontFamily, fontSize, isDark])
 
@@ -779,7 +789,7 @@ export const MindMap: React.FC<MindMapProps> = ({
   return (
     <svg
       ref={svgRef}
-      className={`w-full h-full ${isDark ? 'bg-slate-900' : 'bg-slate-100'} transition-colors duration-200`}
+      className={`w-full h-full ${isDark ? 'bg-slate-900' : 'bg-white'} transition-colors duration-200`}
       style={{ cursor: 'grab', color: isDark ? '#e2e8f0' : '#0f172a' }}
     >
       <g ref={gRef} />
