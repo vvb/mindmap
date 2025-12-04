@@ -480,6 +480,25 @@ export const MindMap: React.FC<MindMapProps> = ({
         return lowest
       }
 
+      // Helper to get the highest descendant of a node
+      const getHighestDescendant = (node: D3Node): number => {
+        const metrics = metricsMap.get(node.data.id)
+        const baseHeight = metrics
+          ? metrics.boxHeight
+          : (node.depth >= 3 ? COMPACT_NODE_HEIGHT : MIN_BOX_HEIGHT)
+
+        let highest = node.x - baseHeight / 2
+
+        if (node.children) {
+          node.children.forEach(child => {
+            const childHighest = getHighestDescendant(child as D3Node)
+            highest = Math.min(highest, childHighest)
+          })
+        }
+
+        return highest
+      }
+
       // Adjust sibling positions: each sibling should be below all descendants of previous siblings
       const adjustSiblings = () => {
         let hadAdjustment = false
@@ -510,10 +529,7 @@ export const MindMap: React.FC<MindMapProps> = ({
             const previousLowest = getLowestDescendant(previousSibling)
 
             // Get the top of the current sibling
-            const currentMetrics = metricsMap.get(currentSibling.data.id)
-            if (!currentMetrics) continue
-
-            const currentTop = currentSibling.x - currentMetrics.boxHeight / 2
+            const currentTop = getHighestDescendant(currentSibling)
 
             // If current sibling overlaps with previous sibling's subtree, move it down
             const requiredGap = VERTICAL_PADDING
