@@ -4,6 +4,9 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import fs from 'fs'
 
+// Store the file to open on startup
+let fileToOpen: string | null = null
+
 function createWindow(): void {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -11,6 +14,7 @@ function createWindow(): void {
     height: 900,
     show: false,
     autoHideMenuBar: false,
+    title: 'Mindmap',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -20,6 +24,13 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+
+    // If there's a file to open, send it to the renderer
+    if (fileToOpen) {
+      const fileData = fs.readFileSync(fileToOpen, 'utf-8')
+      mainWindow.webContents.send('open-file', { filePath: fileToOpen, data: fileData })
+      fileToOpen = null // Clear after opening
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -42,7 +53,7 @@ function createMenu(): void {
   const template: Electron.MenuItemConstructorOptions[] = [
     // App Menu (macOS only)
     ...(isMac ? [{
-      label: app.name,
+      label: 'Mindmap',
       submenu: [
         { role: 'about' as const },
         { type: 'separator' as const },
@@ -172,6 +183,9 @@ function createMenu(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  // Set app name
+  app.name = 'Mindmap'
+
   // Allow multiple instances of the app
   app.requestSingleInstanceLock = () => true
 
@@ -320,6 +334,35 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
+
+// Handle file opening on macOS (when user double-clicks a file)
+app.on('open-file', (event, path) => {
+  event.preventDefault()
+
+  if (path.endsWith('.json')) {
+    const windows = BrowserWindow.getAllWindows()
+
+    if (windows.length > 0) {
+      // If a window exists, send the file to it
+      const fileData = fs.readFileSync(path, 'utf-8')
+      windows[0].webContents.send('open-file', { filePath: path, data: fileData })
+    } else {
+      // If no window exists yet, store the file to open when window is created
+      fileToOpen = path
+    }
+  }
+})
+
+// Handle file opening on Windows/Linux (when user double-clicks a file or passes it as argument)
+if (process.platform !== 'darwin') {
+  // Check if a file was passed as a command-line argument
+  const args = process.argv.slice(1)
+  const jsonFile = args.find(arg => arg.endsWith('.json') && fs.existsSync(arg))
+
+  if (jsonFile) {
+    fileToOpen = jsonFile
+  }
+}
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.

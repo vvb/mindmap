@@ -8,7 +8,10 @@ const api = {
   loadFile: () => ipcRenderer.invoke('load-file'),
   reloadFile: (filePath: string) => ipcRenderer.invoke('reload-file', filePath),
   exportImage: (dataUrl: string, defaultName: string) => ipcRenderer.invoke('export-image', dataUrl, defaultName),
-  newWindow: () => ipcRenderer.invoke('new-window')
+  newWindow: () => ipcRenderer.invoke('new-window'),
+  onOpenFile: (callback: (data: { filePath: string; data: string }) => void) => {
+    ipcRenderer.on('open-file', (_, data) => callback(data))
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

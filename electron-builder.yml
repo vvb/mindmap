@@ -11,6 +11,11 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+fileAssociations:
+  - ext: json
+    name: MindMap JSON File
+    description: MindMap JSON Document
+    role: Editor
 win:
   executableName: mindmap
 nsis:

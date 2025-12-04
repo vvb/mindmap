@@ -524,6 +524,26 @@ function App(): React.JSX.Element {
     setFontSize(size)
   }, [setFontSize])
 
+  // Listen for files opened from outside (double-click, drag-drop, etc.)
+  useEffect(() => {
+    window.api.onOpenFile(({ filePath, data }) => {
+      try {
+        const parsed = JSON.parse(data)
+        setState({
+          ...state,
+          rootNode: parsed,
+          selectedNodeId: parsed.id,
+          historyIndex: 0,
+          history: [parsed]
+        })
+        currentFilePathRef.current = filePath
+        console.log('Opened file from external:', filePath)
+      } catch (error) {
+        console.error('Failed to parse opened file:', error)
+      }
+    })
+  }, [setState, state, currentFilePathRef])
+
   return (
     <div className={`w-screen h-screen flex flex-col overflow-hidden theme-${theme}`}>
       <Toolbar
