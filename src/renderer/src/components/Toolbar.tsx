@@ -26,6 +26,7 @@ interface ToolbarProps {
   onFontFamilyChange: (font: string) => void
   fontSize: number
   onFontSizeChange: (size: number) => void
+  fontOptions: Array<{ label: string; value: string }>
 }
 
 const colors = [
@@ -47,14 +48,6 @@ const icons: Array<{ name: string; value: NodeIcon; symbol: string }> = [
   { name: 'Complete', value: 'check', symbol: '✅' },
   { name: 'Warning', value: 'warning', symbol: '⚠️' },
   { name: 'Note', value: 'note', symbol: '📝' }
-]
-
-const FONT_OPTIONS: Array<{ label: string; value: string }> = [
-  { label: 'System', value: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
-  { label: 'Inter', value: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
-  { label: 'Roboto', value: "'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
-  { label: 'Georgia', value: "'Georgia', 'Times New Roman', serif" },
-  { label: 'SF Mono', value: "'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace" }
 ]
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -81,7 +74,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   fontFamily,
   onFontFamilyChange,
   fontSize,
-  onFontSizeChange
+  onFontSizeChange,
+  fontOptions
 }) => {
   const activeIcon: NodeIcon = selectedNodeIcon ?? 'none'
 
@@ -127,13 +121,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <select
             value={fontFamily}
             onChange={(event) => onFontFamilyChange(event.target.value)}
+            disabled={fontOptions.length === 0}
             className={`rounded px-2 py-1 text-sm transition-colors ${
               theme === 'dark'
                 ? 'bg-slate-800 border border-slate-600 text-slate-100'
                 : 'bg-white border border-gray-300 text-gray-700'
             }`}
           >
-            {FONT_OPTIONS.map(option => (
+            {fontOptions.map(option => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>

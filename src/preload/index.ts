@@ -9,6 +9,7 @@ const api = {
   reloadFile: (filePath: string) => ipcRenderer.invoke('reload-file', filePath),
   exportImage: (dataUrl: string, defaultName: string) => ipcRenderer.invoke('export-image', dataUrl, defaultName),
   newWindow: () => ipcRenderer.invoke('new-window'),
+  listSystemFonts: () => ipcRenderer.invoke('list-fonts'),
   onOpenFile: (callback: (data: { filePath: string; data: string }) => void) => {
     const handler = (_: Electron.IpcRendererEvent, data: { filePath: string; data: string }) => callback(data)
     ipcRenderer.on('open-file', handler)

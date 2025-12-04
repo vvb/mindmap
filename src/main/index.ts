@@ -12,6 +12,7 @@ const sendMenuEventToFocused = (channel: string) => {
 }
 
 let openDialogInProgress = false
+let cachedSystemFonts: string[] | null = null
 
 const openMindmapFromDialog = async (targetWindow?: BrowserWindow | null) => {
   if (openDialogInProgress) {
@@ -339,6 +340,27 @@ app.whenReady().then(() => {
       return { success: true, filePath }
     }
     return { success: false }
+  })
+
+  ipcMain.handle('list-fonts', async () => {
+    try {
+      if (cachedSystemFonts) {
+        return { success: true, fonts: cachedSystemFonts }
+      }
+
+      const { getFonts } = await import('font-list')
+      const fonts = await getFonts()
+      const uniqueFonts = Array.from(new Set(fonts))
+        .map(font => font.trim())
+        .filter(font => font.length > 0)
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+
+      cachedSystemFonts = uniqueFonts
+      return { success: true, fonts: cachedSystemFonts }
+    } catch (error) {
+      console.error('Failed to list system fonts:', error)
+      return { success: false, error: (error as Error).message }
+    }
   })
 
   // Handler to create a new window

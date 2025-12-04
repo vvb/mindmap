@@ -5,6 +5,24 @@ import { HelpPanel } from './components/HelpPanel'
 import { useMindMap } from './hooks/useMindMap'
 import { NodeIcon, MindMapNode, NODE_ICON_VALUES } from './types/mindmap'
 
+const SYSTEM_FONT_FALLBACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+
+const DEFAULT_FONT_OPTIONS: Array<{ label: string; value: string }> = [
+  { label: 'System Default', value: SYSTEM_FONT_FALLBACK },
+  { label: 'Inter', value: `'Inter', ${SYSTEM_FONT_FALLBACK}` },
+  { label: 'Roboto', value: `'Roboto', ${SYSTEM_FONT_FALLBACK}` },
+  { label: 'Georgia', value: `'Georgia', ${SYSTEM_FONT_FALLBACK}` },
+  {
+    label: 'SF Mono',
+    value: `'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace`
+  }
+]
+
+const createFontStack = (name: string): string => {
+  const sanitized = name.replace(/'/g, "\\'")
+  return `'${sanitized}', ${SYSTEM_FONT_FALLBACK}`
+}
+
 function App(): React.JSX.Element {
   const {
     state,
@@ -33,6 +51,7 @@ function App(): React.JSX.Element {
 
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const [showHelp, setShowHelp] = useState(false)
+  const [fontOptions, setFontOptions] = useState(DEFAULT_FONT_OPTIONS)
   const dialogLocksRef = useRef({ load: false, saveAs: false, export: false })
 
   const normalizeMindMapNode = useCallback((node: MindMapNode) => {
@@ -119,6 +138,38 @@ function App(): React.JSX.Element {
     document.body.style.backgroundColor = isDark ? '#0f172a' : '#ffffff'
     document.body.style.color = isDark ? '#e2e8f0' : '#111827'
   }, [isDark])
+
+  useEffect(() => {
+    let isCancelled = false
+
+    const loadFonts = async () => {
+      try {
+        const response = await window.api.listSystemFonts()
+        if (!response.success || !response.fonts || response.fonts.length === 0) {
+          return
+        }
+
+        const defaultLabels = new Set(DEFAULT_FONT_OPTIONS.map(option => option.label.toLowerCase()))
+        const systemOptions = response.fonts
+          .map(font => font.trim())
+          .filter(font => font.length > 0)
+          .filter(font => !defaultLabels.has(font.toLowerCase()))
+          .map(font => ({ label: font, value: createFontStack(font) }))
+
+        if (!isCancelled && systemOptions.length > 0) {
+          setFontOptions([...DEFAULT_FONT_OPTIONS, ...systemOptions])
+        }
+      } catch (error) {
+        console.error('Failed to load system fonts:', error)
+      }
+    }
+
+    loadFonts()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [])
 
   // Save file
   const serializeMindMap = useCallback(() => JSON.stringify(state.root, null, 2), [state.root])
@@ -582,6 +633,7 @@ function App(): React.JSX.Element {
         onFontFamilyChange={handleFontFamilyChange}
         fontSize={fontSize}
         onFontSizeChange={handleFontSizeChange}
+        fontOptions={fontOptions}
       />
 
       <div className="flex-1 relative">

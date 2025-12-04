@@ -7,6 +7,7 @@ interface API {
   reloadFile: (filePath: string) => Promise<{ success: boolean; data?: string; filePath?: string; error?: string }>
   exportImage: (dataUrl: string, defaultName: string) => Promise<{ success: boolean; filePath?: string }>
   newWindow: () => Promise<{ success: boolean }>
+  listSystemFonts: () => Promise<{ success: boolean; fonts?: string[]; error?: string }>
   onOpenFile: (callback: (data: { filePath: string; data: string }) => void) => () => void
 }
 
