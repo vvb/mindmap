@@ -15,6 +15,20 @@ const getColorForDepth = (depth: number): string => {
 }
 
 const PREFERENCES_STORAGE_KEY = 'mindmap.preferences.v1'
+const DEFAULT_LEFT_MARGIN = 100
+const TOOLBAR_HEIGHT_ESTIMATE = 64
+
+const computeDefaultPan = () => {
+  if (typeof window === 'undefined') {
+    return { x: DEFAULT_LEFT_MARGIN, y: 0 }
+  }
+
+  const usableHeight = Math.max(window.innerHeight - TOOLBAR_HEIGHT_ESTIMATE, 0)
+  return {
+    x: DEFAULT_LEFT_MARGIN,
+    y: usableHeight / 2
+  }
+}
 
 const DEFAULT_PREFERENCES: MindMapPreferences = {
   theme: 'light',
@@ -65,7 +79,7 @@ const persistPreferencesToStorage = (preferences: MindMapPreferences) => {
 
 const createInitialNode = (): MindMapNode => ({
   id: uuidv4(),
-  text: 'Central Idea',
+  text: 'Root',
   x: 0,
   y: 0,
   color: getColorForDepth(0),
@@ -89,7 +103,7 @@ export const useMindMap = () => {
       history: [initialSnapshot],
       historyIndex: 0,
       zoom: 1,
-      pan: { x: 0, y: 0 },
+      pan: computeDefaultPan(),
       preferences: storedPreferences
     }
   })
@@ -332,16 +346,10 @@ export const useMindMap = () => {
     resetPositions(newRoot)
 
     // Calculate pan offset to position root on left-center
-    let centerPan = { x: 0, y: 0 }
-    if (viewportWidth && viewportHeight) {
-      // Position root node on the left side (with some margin) and vertically centered
-      // This maximizes space for the tree to grow to the right
-      const leftMargin = 100  // Space from left edge
-      centerPan = {
-        x: leftMargin,
-        y: viewportHeight / 2
-      }
-    }
+    const hasViewport = typeof viewportWidth === 'number' && typeof viewportHeight === 'number'
+    const centerPan = hasViewport
+      ? { x: DEFAULT_LEFT_MARGIN, y: viewportHeight! / 2 }
+      : computeDefaultPan()
 
     // Reset zoom and pan to centered view
     setState(prev => ({
@@ -434,7 +442,7 @@ export const useMindMap = () => {
       history: [snapshot],
       historyIndex: 0,
       zoom: 1,
-      pan: { x: 0, y: 0 }
+      pan: computeDefaultPan()
     }))
   }, [])
 
