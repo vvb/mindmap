@@ -405,8 +405,6 @@ export const MindMap: React.FC<MindMapProps> = ({
     }
 
     const getTextColor = (node: D3Node) => {
-      if (node.data.id === selectedNodeId) return isDark ? '#FACC15' : '#1E40AF'
-
       // For level 3+ nodes (text-only nodes), use solid dark/light colors
       if (node.depth >= 3) {
         return isDark ? '#93C5FD' : '#1F2937'
@@ -414,6 +412,14 @@ export const MindMap: React.FC<MindMapProps> = ({
 
       const background = node.data.color || (isDark ? '#1E293B' : '#E3F2FD')
       const contrast = getContrastingTextColor(background, isDark)
+
+      // For selected nodes, use a color that contrasts with the background
+      // instead of a fixed yellow/blue color
+      if (node.data.id === selectedNodeId) {
+        // If the background is light/yellow, use dark text
+        // If the background is dark, use light text
+        return contrast
+      }
 
       if (node.data.collapsed && node.data.children.length > 0) {
         return contrast
