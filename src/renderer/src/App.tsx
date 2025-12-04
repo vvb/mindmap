@@ -558,10 +558,6 @@ function App(): React.JSX.Element {
   return (
     <div className={`w-screen h-screen flex flex-col overflow-hidden theme-${theme}`}>
       <Toolbar
-        onSave={handleSave}
-        onSaveAs={handleSaveAs}
-        onLoad={handleLoad}
-        onExport={handleExport}
         onUndo={undo}
         onRedo={redo}
         onAddNode={() => state.selectedNodeId && addNode(state.selectedNodeId)}

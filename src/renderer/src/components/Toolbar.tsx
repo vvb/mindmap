@@ -2,10 +2,6 @@ import React from 'react'
 import { NodeIcon, MindMapTheme } from '../types/mindmap'
 
 interface ToolbarProps {
-  onSave: () => void
-  onSaveAs: () => void
-  onLoad: () => void
-  onExport: () => void
   onUndo: () => void
   onRedo: () => void
   onAddNode: () => void
@@ -62,10 +58,6 @@ const FONT_OPTIONS: Array<{ label: string; value: string }> = [
 ]
 
 export const Toolbar: React.FC<ToolbarProps> = ({
-  onSave,
-  onSaveAs,
-  onLoad,
-  onExport,
   onUndo,
   onRedo,
   onAddNode,
@@ -121,38 +113,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           : 'bg-white border-gray-200 text-slate-800'
       }`}
     >
-      {/* File operations */}
-      <div className={`flex items-center gap-1 border-r ${dividerClass} pr-2`}>
-        <button
-          onClick={onLoad}
-          className={baseButton}
-          title="Open (Cmd+O)"
-        >
-          📂 Open
-        </button>
-        <button
-          onClick={onSave}
-          className={baseButton}
-          title="Save (Cmd+S)"
-        >
-          💾 Save
-        </button>
-        <button
-          onClick={onSaveAs}
-          className={baseButton}
-          title="Save As (Cmd+Shift+S)"
-        >
-          📝 Save As
-        </button>
-        <button
-          onClick={onExport}
-          className={baseButton}
-          title="Export as Image (Cmd+E)"
-        >
-          📸 Export
-        </button>
-      </div>
-
       {/* Theme & typography */}
       <div className={`flex items-center gap-2 border-r ${dividerClass} pr-2`}>
         <button
