@@ -709,7 +709,10 @@ export const MindMap: React.FC<MindMapProps> = ({
     const textSelection = nodeElements.append('text')
       .attr('class', 'node-text')
       .attr('text-anchor', d => d.depth >= 3 ? 'start' : 'middle')
-      .attr('dx', d => d.depth >= 3 ? TEXT_LEFT_PADDING + 1 : 0)
+      .attr('dominant-baseline', 'middle')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('dx', 0)
       .attr('fill', d => getTextColor(d))
       .style('font-family', fontFamily)
       .style('font-size', d => {
@@ -740,8 +743,8 @@ export const MindMap: React.FC<MindMapProps> = ({
       if (d.depth >= 3) {
         const lines = metrics.lines ?? [metrics.displayText]
         const lineSpacing = Math.max(COMPACT_NODE_HEIGHT, getRenderedFontSize(d.depth) + 4)
-        const totalHeight = lines.length * lineSpacing
-        selection.attr('dy', -totalHeight / 2 + lineSpacing * 0.7)
+        const offset = -((lines.length - 1) / 2) * lineSpacing
+        selection.attr('dy', offset)
         selection.attr('dx', 0)
         selection.attr('x', 0)
         selection.text(null)
@@ -757,10 +760,10 @@ export const MindMap: React.FC<MindMapProps> = ({
       }
 
       const lines = metrics.lines ?? [metrics.displayText]
-      const totalTextHeight = lines.length * LINE_HEIGHT
-      const initialDy = -totalTextHeight / 2 + LINE_HEIGHT * 0.7
-      selection.attr('dy', initialDy)
+      const offset = -((lines.length - 1) / 2) * LINE_HEIGHT
+      selection.attr('dy', offset)
       selection.attr('dx', 0)
+      selection.attr('x', 0)
       selection.text(null)
 
       lines.forEach((line, idx) => {
