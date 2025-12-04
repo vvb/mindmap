@@ -6,6 +6,7 @@ interface ToolbarProps {
   onSave: () => void
   onSaveAs: () => void
   onLoad: () => void
+  onReload: () => void
   onExport: () => void
   onUndo: () => void
   onRedo: () => void
@@ -31,6 +32,7 @@ interface ToolbarProps {
   onFontFamilyChange: (font: string) => void
   fontSize: number
   onFontSizeChange: (size: number) => void
+  hasOpenFile: boolean
 }
 
 const colors = [
@@ -67,6 +69,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onSave,
   onSaveAs,
   onLoad,
+  onReload,
   onExport,
   onUndo,
   onRedo,
@@ -91,7 +94,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   fontFamily,
   onFontFamilyChange,
   fontSize,
-  onFontSizeChange
+  onFontSizeChange,
+  hasOpenFile
 }) => {
   const activeIcon: NodeIcon = selectedNodeIcon ?? 'none'
 
@@ -138,6 +142,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           title="Open (Cmd+O)"
         >
           📂 Open
+        </button>
+        <button
+          onClick={onReload}
+          disabled={!hasOpenFile}
+          className={`${baseButton} ${disabledClasses}`}
+          title="Reload current file (Cmd+R)"
+        >
+          🔄 Reload
         </button>
         <button
           onClick={onSave}

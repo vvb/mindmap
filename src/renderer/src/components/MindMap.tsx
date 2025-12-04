@@ -519,7 +519,7 @@ export const MindMap: React.FC<MindMapProps> = ({
         const lines = metrics.lines ?? [metrics.displayText]
         const lineSpacing = Math.max(COMPACT_NODE_HEIGHT, getRenderedFontSize(d.depth) + 4)
         const totalHeight = lines.length * lineSpacing
-        selection.attr('dy', -totalHeight / 2 + lineSpacing / 2)
+        selection.attr('dy', -totalHeight / 2 + lineSpacing * 0.7)
         selection.attr('dx', 0)
         selection.attr('x', 0)
         selection.text(null)
@@ -536,7 +536,7 @@ export const MindMap: React.FC<MindMapProps> = ({
 
       const lines = metrics.lines ?? [metrics.displayText]
       const totalTextHeight = lines.length * LINE_HEIGHT
-      const initialDy = -totalTextHeight / 2 + LINE_HEIGHT / 2
+      const initialDy = -totalTextHeight / 2 + LINE_HEIGHT * 0.7
       selection.attr('dy', initialDy)
       selection.attr('dx', 0)
       selection.text(null)

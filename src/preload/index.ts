@@ -6,6 +6,7 @@ const api = {
   saveFile: (data: string, filePath?: string) => ipcRenderer.invoke('save-file', { data, filePath }),
   saveFileAs: (data: string) => ipcRenderer.invoke('save-file-as', { data }),
   loadFile: () => ipcRenderer.invoke('load-file'),
+  reloadFile: (filePath: string) => ipcRenderer.invoke('reload-file', filePath),
   exportImage: (dataUrl: string, defaultName: string) => ipcRenderer.invoke('export-image', dataUrl, defaultName),
   newWindow: () => ipcRenderer.invoke('new-window')
 }

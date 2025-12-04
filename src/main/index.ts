@@ -262,6 +262,20 @@ app.whenReady().then(() => {
     return { success: false }
   })
 
+  ipcMain.handle('reload-file', async (_, filePath: string) => {
+    if (!filePath) {
+      return { success: false, error: 'No file path provided' }
+    }
+
+    try {
+      const data = fs.readFileSync(filePath, 'utf-8')
+      return { success: true, data, filePath }
+    } catch (error) {
+      console.error('Failed to reload file:', error)
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
   ipcMain.handle('export-image', async (_, dataUrl, defaultName) => {
     const { filePath } = await dialog.showSaveDialog({
       title: 'Export Mindmap as Image',

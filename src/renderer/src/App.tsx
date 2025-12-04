@@ -170,6 +170,56 @@ function App(): React.JSX.Element {
     }
   }, [setState, currentFilePathRef])
 
+  // Reload current file
+  const handleReload = useCallback(async () => {
+    const currentPath = currentFilePathRef.current
+    if (!currentPath) {
+      console.log('No file to reload')
+      return
+    }
+
+    const result = await window.api.reloadFile(currentPath)
+    if (result.success && result.data) {
+      try {
+        const loadedRoot = JSON.parse(result.data) as MindMapNode
+
+        const normalizeNode = (node: MindMapNode) => {
+          if (!Array.isArray(node.children)) {
+            node.children = []
+          }
+          if (node.collapsed === undefined) {
+            node.collapsed = false
+          }
+          if (node.manualPosition === undefined) {
+            node.manualPosition = false
+          }
+          if (!node.icon || !NODE_ICON_VALUES.includes(node.icon)) {
+            node.icon = 'none'
+          }
+          node.children.forEach(child => normalizeNode(child))
+        }
+
+        normalizeNode(loadedRoot)
+
+        const historyRoot = JSON.parse(JSON.stringify(loadedRoot)) as MindMapNode
+
+        setState(prev => ({
+          ...prev,
+          root: loadedRoot,
+          history: [historyRoot],
+          historyIndex: 0,
+          selectedNodeId: loadedRoot.id
+        }))
+        setEditingNodeId(null)
+        console.log('Reloaded from:', result.filePath)
+      } catch (error) {
+        console.error('Failed to parse mindmap file:', error)
+      }
+    } else if (result.error) {
+      console.error('Failed to reload file:', result.error)
+    }
+  }, [setState, currentFilePathRef])
+
   // Export as image
   const handleExport = useCallback(async () => {
     const svg = document.querySelector('svg')
@@ -307,6 +357,11 @@ function App(): React.JSX.Element {
         e.preventDefault()
         handleLoad()
       }
+      // Reload
+      else if (cmdOrCtrl && normalizedKey === 'r') {
+        e.preventDefault()
+        handleReload()
+      }
       // Navigate to previous visible node (pre-order)
       else if (normalizedKey === 'arrowup' && state.selectedNodeId) {
         e.preventDefault()
@@ -409,6 +464,7 @@ function App(): React.JSX.Element {
     handleSaveAs,
     handleNew,
     handleLoad,
+    handleReload,
     handleStartEditing,
     toggleNodeCollapse,
     setNodeCollapsed,
@@ -475,6 +531,7 @@ function App(): React.JSX.Element {
         onSave={handleSave}
         onSaveAs={handleSaveAs}
         onLoad={handleLoad}
+        onReload={handleReload}
         onExport={handleExport}
         onUndo={undo}
         onRedo={redo}
@@ -498,6 +555,7 @@ function App(): React.JSX.Element {
         onToggleTheme={handleToggleTheme}
         fontFamily={fontFamily}
         onFontFamilyChange={handleFontFamilyChange}
+        hasOpenFile={currentFilePathRef.current !== null}
         fontSize={fontSize}
         onFontSizeChange={handleFontSizeChange}
       />
