@@ -531,7 +531,6 @@ function App(): React.JSX.Element {
         onSave={handleSave}
         onSaveAs={handleSaveAs}
         onLoad={handleLoad}
-        onReload={handleReload}
         onExport={handleExport}
         onUndo={undo}
         onRedo={redo}
@@ -555,7 +554,6 @@ function App(): React.JSX.Element {
         onToggleTheme={handleToggleTheme}
         fontFamily={fontFamily}
         onFontFamilyChange={handleFontFamilyChange}
-        hasOpenFile={currentFilePathRef.current !== null}
         fontSize={fontSize}
         onFontSizeChange={handleFontSizeChange}
       />

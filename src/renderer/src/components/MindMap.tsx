@@ -35,14 +35,14 @@ const ICON_SYMBOLS: Record<NodeIcon, string> = {
 }
 
 const LINK_COLOR_MAP: Record<string, string> = {
-  '#FFE5B4': '#F59E0B', // Peach -> Amber
-  '#E3F2FD': '#1976D2', // Blue -> Dark Blue
-  '#E8F5E9': '#388E3C', // Green -> Green
-  '#FFF9C4': '#FBC02D', // Yellow -> Dark Yellow
-  '#FCE4EC': '#C2185B', // Pink -> Pink
-  '#F3E5F5': '#7B1FA2', // Purple -> Purple
-  '#FFF3E0': '#F57C00', // Orange -> Orange
-  '#E0F7FA': '#0097A7'  // Cyan -> Cyan
+  '#FFB84D': '#F97316', // Orange -> Darker Orange
+  '#60A5FA': '#2563EB', // Blue -> Darker Blue
+  '#4ADE80': '#16A34A', // Green -> Darker Green
+  '#FCD34D': '#EAB308', // Yellow -> Darker Yellow
+  '#F472B6': '#EC4899', // Pink -> Darker Pink
+  '#C084FC': '#9333EA', // Purple -> Darker Purple
+  '#FB7185': '#E11D48', // Red -> Darker Red
+  '#22D3EE': '#06B6D4'  // Cyan -> Darker Cyan
 }
 
 const COLLAPSE_TOGGLE_RADIUS = 4
@@ -323,6 +323,219 @@ export const MindMap: React.FC<MindMapProps> = ({
 
     measurementGroup.remove()
 
+    // Collision detection and resolution
+    const resolveCollisions = () => {
+      const VERTICAL_PADDING = 8 // Minimum vertical gap between nodes
+      const HORIZONTAL_OVERLAP_THRESHOLD = 50 // Only check nodes that are horizontally close
+      const MAX_ITERATIONS = 10 // Prevent infinite loops
+
+      // Helper to get all descendants of a node
+      const getDescendants = (node: D3Node): D3Node[] => {
+        const descendants: D3Node[] = []
+        const traverse = (n: D3Node) => {
+          if (n.children) {
+            n.children.forEach(child => {
+              descendants.push(child as D3Node)
+              traverse(child as D3Node)
+            })
+          }
+        }
+        traverse(node)
+        return descendants
+      }
+
+      // Helper to get horizontal bounds of a node
+      const getHorizontalBounds = (node: D3Node): { left: number; right: number } => {
+        const metrics = metricsMap.get(node.data.id)
+        if (!metrics) return { left: node.y, right: node.y }
+
+        if (node.depth >= 3) {
+          return {
+            left: node.y - TEXT_LEFT_PADDING,
+            right: node.y + metrics.layoutWidth
+          }
+        } else {
+          return {
+            left: node.y - metrics.boxWidth / 2,
+            right: node.y + metrics.boxWidth / 2
+          }
+        }
+      }
+
+      // Helper to check if two nodes overlap both vertically AND horizontally
+      const nodesOverlap = (node1: D3Node, node2: D3Node): number => {
+        const metrics1 = metricsMap.get(node1.data.id)
+        const metrics2 = metricsMap.get(node2.data.id)
+
+        if (!metrics1 || !metrics2) return 0
+
+        // Check horizontal overlap first
+        const bounds1 = getHorizontalBounds(node1)
+        const bounds2 = getHorizontalBounds(node2)
+
+        const horizontalOverlap = Math.min(bounds1.right, bounds2.right) - Math.max(bounds1.left, bounds2.left)
+
+        // If they don't overlap horizontally (with some threshold), skip
+        if (horizontalOverlap < -HORIZONTAL_OVERLAP_THRESHOLD) return 0
+
+        // Now check vertical overlap
+        const height1 = metrics1.boxHeight
+        const height2 = metrics2.boxHeight
+
+        const top1 = node1.x - height1 / 2
+        const bottom1 = node1.x + height1 / 2
+        const top2 = node2.x - height2 / 2
+        const bottom2 = node2.x + height2 / 2
+
+        // Check if they overlap vertically
+        if (bottom1 + VERTICAL_PADDING > top2 && top1 < bottom2 + VERTICAL_PADDING) {
+          // Return the amount of overlap
+          return (bottom1 + VERTICAL_PADDING) - top2
+        }
+
+        return 0
+      }
+
+      // Helper to move a node and all its descendants
+      const moveNodeAndDescendants = (node: D3Node, deltaX: number) => {
+        node.x += deltaX
+        const descendants = getDescendants(node)
+        descendants.forEach(desc => {
+          desc.x += deltaX
+        })
+      }
+
+      // Sort all nodes by vertical position (x coordinate)
+      const sortedNodes = [...nodes].sort((a, b) => a.x - b.x)
+
+      // Helper to check if a line from parent to child crosses through a node
+      const lineCrossesNode = (parent: D3Node, child: D3Node, node: D3Node): number => {
+        // Skip if the node is part of the line
+        if (node.data.id === parent.data.id || node.data.id === child.data.id) return 0
+
+        // Skip if node is in the same lineage
+        let ancestor = child.parent
+        while (ancestor) {
+          if (ancestor.data.id === node.data.id) return 0
+          ancestor = ancestor.parent
+        }
+        ancestor = node.parent
+        while (ancestor) {
+          if (ancestor.data.id === child.data.id || ancestor.data.id === parent.data.id) return 0
+          ancestor = ancestor.parent
+        }
+
+        const nodeMetrics = metricsMap.get(node.data.id)
+        if (!nodeMetrics) return 0
+
+        // Get node vertical bounds
+        const nodeTop = node.x - nodeMetrics.boxHeight / 2
+        const nodeBottom = node.x + nodeMetrics.boxHeight / 2
+
+        // Get line vertical bounds (the line goes from parent.x to child.x)
+        const lineTop = Math.min(parent.x, child.x)
+        const lineBottom = Math.max(parent.x, child.x)
+
+        // Get node horizontal bounds
+        const nodeBounds = getHorizontalBounds(node)
+
+        // Get line horizontal bounds (from parent's right edge to child's left edge)
+        const parentMetrics = metricsMap.get(parent.data.id)
+        const childMetrics = metricsMap.get(child.data.id)
+
+        const parentRight = parent.y + (parent.depth >= 3 ? (parentMetrics?.layoutWidth || 80) : ((parentMetrics?.boxWidth || 120) / 2))
+        const childLeft = child.y - (child.depth >= 3 ? TEXT_LEFT_PADDING : ((childMetrics?.boxWidth || 120) / 2))
+
+        // Check if the node is in the horizontal path of the line
+        const inHorizontalPath = nodeBounds.right > parentRight && nodeBounds.left < childLeft
+
+        if (!inHorizontalPath) return 0
+
+        // Check if the node is in the vertical range of the line (with padding)
+        const inVerticalRange = nodeBottom > lineTop - VERTICAL_PADDING && nodeTop < lineBottom + VERTICAL_PADDING
+
+        if (inVerticalRange) {
+          // The line crosses this node - calculate how much to move the child
+          // Move child below the node
+          return nodeBottom - child.x + nodeMetrics.boxHeight / 2 + VERTICAL_PADDING
+        }
+
+        return 0
+      }
+
+      // Helper to get the lowest descendant of a node
+      const getLowestDescendant = (node: D3Node): number => {
+        const metrics = metricsMap.get(node.data.id)
+        if (!metrics) return node.x
+
+        let lowest = node.x + metrics.boxHeight / 2
+
+        if (node.children) {
+          node.children.forEach(child => {
+            const childLowest = getLowestDescendant(child as D3Node)
+            lowest = Math.max(lowest, childLowest)
+          })
+        }
+
+        return lowest
+      }
+
+      // Adjust sibling positions: each sibling should be below all descendants of previous siblings
+      const adjustSiblings = () => {
+        let hadAdjustment = false
+
+        // Group nodes by parent
+        const nodesByParent = new Map<string, D3Node[]>()
+        nodes.forEach(node => {
+          if (node.parent) {
+            const parentId = node.parent.data.id
+            if (!nodesByParent.has(parentId)) {
+              nodesByParent.set(parentId, [])
+            }
+            nodesByParent.get(parentId)!.push(node)
+          }
+        })
+
+        // For each parent's children, ensure proper vertical ordering
+        nodesByParent.forEach((siblings, parentId) => {
+          // Sort siblings by their current vertical position
+          siblings.sort((a, b) => a.x - b.x)
+
+          // For each sibling (starting from the second one)
+          for (let i = 1; i < siblings.length; i++) {
+            const currentSibling = siblings[i]
+            const previousSibling = siblings[i - 1]
+
+            // Get the lowest point of the previous sibling's entire subtree
+            const previousLowest = getLowestDescendant(previousSibling)
+
+            // Get the top of the current sibling
+            const currentMetrics = metricsMap.get(currentSibling.data.id)
+            if (!currentMetrics) continue
+
+            const currentTop = currentSibling.x - currentMetrics.boxHeight / 2
+
+            // If current sibling overlaps with previous sibling's subtree, move it down
+            const requiredGap = VERTICAL_PADDING
+            const overlap = previousLowest + requiredGap - currentTop
+
+            if (overlap > 0) {
+              moveNodeAndDescendants(currentSibling, overlap)
+              hadAdjustment = true
+            }
+          }
+        })
+
+        return hadAdjustment
+      }
+
+      // Iteratively adjust until no more adjustments needed
+      for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+        const hadAdjustment = adjustSiblings()
+        if (!hadAdjustment) break
+      }
+    }
+
     // Helper to calculate link path
     const getRightExtent = (node: D3Node) => {
       const metrics = metricsMap.get(node.data.id)
@@ -373,6 +586,9 @@ export const MindMap: React.FC<MindMapProps> = ({
       }
 
       assignHorizontalPositions(rootNode)
+
+      // Resolve any collisions after layout
+      resolveCollisions()
     }
 
     nodes.forEach(node => {
@@ -410,7 +626,7 @@ export const MindMap: React.FC<MindMapProps> = ({
         return isDark ? '#93C5FD' : '#1F2937'
       }
 
-      const background = node.data.color || (isDark ? '#1E293B' : '#E3F2FD')
+      const background = node.data.color || (isDark ? '#1E293B' : '#60A5FA')
       const contrast = getContrastingTextColor(background, isDark)
 
       // For selected nodes, use a color that contrasts with the background
@@ -461,7 +677,7 @@ export const MindMap: React.FC<MindMapProps> = ({
       })
       .attr('rx', 8)
       .attr('ry', 8)
-      .attr('fill', d => d.data.color || (isDark ? '#1E293B' : '#E3F2FD'))
+      .attr('fill', d => d.data.color || (isDark ? '#1E293B' : '#60A5FA'))
       .attr('stroke', d => getRectStroke(d))
       .attr('stroke-width', d => d.data.id === selectedNodeId ? 3 : 2)
       .style('display', d => d.depth >= 3 ? 'none' : 'block')

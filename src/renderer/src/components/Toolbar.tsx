@@ -6,7 +6,6 @@ interface ToolbarProps {
   onSave: () => void
   onSaveAs: () => void
   onLoad: () => void
-  onReload: () => void
   onExport: () => void
   onUndo: () => void
   onRedo: () => void
@@ -32,18 +31,17 @@ interface ToolbarProps {
   onFontFamilyChange: (font: string) => void
   fontSize: number
   onFontSizeChange: (size: number) => void
-  hasOpenFile: boolean
 }
 
 const colors = [
-  { name: 'Peach', value: '#FFE5B4' },
-  { name: 'Blue', value: '#E3F2FD' },
-  { name: 'Green', value: '#E8F5E9' },
-  { name: 'Yellow', value: '#FFF9C4' },
-  { name: 'Pink', value: '#FCE4EC' },
-  { name: 'Purple', value: '#F3E5F5' },
-  { name: 'Orange', value: '#FFF3E0' },
-  { name: 'Cyan', value: '#E0F7FA' }
+  { name: 'Orange', value: '#FFB84D' },
+  { name: 'Blue', value: '#60A5FA' },
+  { name: 'Green', value: '#4ADE80' },
+  { name: 'Yellow', value: '#FCD34D' },
+  { name: 'Pink', value: '#F472B6' },
+  { name: 'Purple', value: '#C084FC' },
+  { name: 'Red', value: '#FB7185' },
+  { name: 'Cyan', value: '#22D3EE' }
 ]
 
 const icons: Array<{ name: string; value: NodeIcon; symbol: string }> = [
@@ -69,7 +67,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onSave,
   onSaveAs,
   onLoad,
-  onReload,
   onExport,
   onUndo,
   onRedo,
@@ -94,8 +91,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   fontFamily,
   onFontFamilyChange,
   fontSize,
-  onFontSizeChange,
-  hasOpenFile
+  onFontSizeChange
 }) => {
   const activeIcon: NodeIcon = selectedNodeIcon ?? 'none'
 
@@ -142,14 +138,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           title="Open (Cmd+O)"
         >
           📂 Open
-        </button>
-        <button
-          onClick={onReload}
-          disabled={!hasOpenFile}
-          className={`${baseButton} ${disabledClasses}`}
-          title="Reload current file (Cmd+R)"
-        >
-          🔄 Reload
         </button>
         <button
           onClick={onSave}
