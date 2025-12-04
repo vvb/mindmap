@@ -47,9 +47,13 @@ const LINK_COLOR_MAP: Record<string, string> = {
 
 const COLLAPSE_TOGGLE_RADIUS = 9
 const AUTO_LAYOUT_HORIZONTAL_GAP = 80
-const TEXT_NODE_HORIZONTAL_GAP = 40
+const TEXT_NODE_HORIZONTAL_GAP = 24
 const TEXT_LEFT_PADDING = 2
 const TEXT_NODE_RIGHT_PADDING = 8
+const COMPACT_NODE_MIN_WIDTH = 64
+const COMPACT_NODE_HEIGHT = 20
+const COMPACT_FONT_MIN = 11
+const COMPACT_VERTICAL_NODE_SPACING = 70
 
 const MAX_BOX_WIDTH = 440
 const MIN_BOX_WIDTH = 120
@@ -138,16 +142,22 @@ export const MindMap: React.FC<MindMapProps> = ({
 
     // Create horizontal tree layout (left to right like FreeMind)
     const treeLayout = d3.tree<MindMapNode>()
-      .nodeSize([90, 250]) // [vertical spacing between siblings, horizontal spacing to children]
+      .nodeSize([COMPACT_VERTICAL_NODE_SPACING, 250]) // [vertical spacing between siblings, horizontal spacing to children]
       .separation((a, b) => {
-        // Increase spacing between different branches to prevent overlap
-        // Siblings get 1x spacing, cousins get more spacing based on their subtree sizes
-        if (a.parent === b.parent) {
-          return 1
+        const isSameParent = a.parent === b.parent
+        const maxDepth = Math.max(a.depth, b.depth)
+        const minDepth = Math.min(a.depth, b.depth)
+
+        // Keep top levels roomy while squeezing deeper branches for a compact outline effect
+        if (maxDepth <= 2) {
+          return isSameParent ? 1.3 : 2.8
         }
-        // For non-siblings, increase spacing more to prevent overlap
-        // This helps when nodes have many children
-        return 2.5
+
+        if (minDepth <= 2) {
+          return isSameParent ? 1 : 2
+        }
+
+        return isSameParent ? 0.6 : 1.1
       })
 
     const treeData = treeLayout(hierarchy) as D3Node
@@ -155,7 +165,7 @@ export const MindMap: React.FC<MindMapProps> = ({
     const getRenderedFontSize = (depth: number) => {
       if (depth === 0) return fontSize + 2
       if (depth === 1) return fontSize + 1
-      if (depth >= 3) return Math.max(fontSize - 1, 12)
+      if (depth >= 3) return Math.max(fontSize - 2, COMPACT_FONT_MIN)
       return fontSize
     }
 
@@ -176,7 +186,7 @@ export const MindMap: React.FC<MindMapProps> = ({
       return width
     }
 
-    const wrapTextForBoxNode = (text: string, depth: number) => {
+    const wrapTextForNode = (text: string, depth: number) => {
       const words = text.split(/\s+/).filter(Boolean)
       if (words.length === 0) {
         return {
@@ -190,13 +200,14 @@ export const MindMap: React.FC<MindMapProps> = ({
       const lineWidths: number[] = []
 
       let currentLine = ''
-
-      const pushCurrentLine = () => {
+      let lineCharCount = 0
+      const flushCurrentLine = () => {
         const lineText = currentLine.trim()
         const width = measureTextWidth(lineText, depth)
         lines.push(lineText)
         lineWidths.push(width)
         currentLine = ''
+        lineCharCount = 0
       }
 
       const pushSegment = (segment: string) => {
@@ -205,23 +216,34 @@ export const MindMap: React.FC<MindMapProps> = ({
         const width = measureTextWidth(textSegment, depth)
         lines.push(textSegment)
         lineWidths.push(width)
+        lineCharCount = 0
       }
 
+      const maxChars = depth >= 3 ? 80 : Number.MAX_SAFE_INTEGER
+
       words.forEach(word => {
-        const candidate = currentLine.length > 0 ? `${currentLine} ${word}` : word
+        const spaced = currentLine.length > 0
+        const candidate = spaced ? `${currentLine} ${word}` : word
         const candidateWidth = measureTextWidth(candidate, depth)
-        if (candidateWidth <= maxContentWidth || currentLine.length === 0) {
+        const spaceAdded = spaced ? 1 : 0
+        const candidateChars = lineCharCount + spaceAdded + word.length
+        const exceedsChars = depth >= 3 && candidateChars > maxChars
+
+        const allowEmptyOverflow = lineCharCount === 0 && depth < 3
+        if (!exceedsChars && (candidateWidth <= maxContentWidth || allowEmptyOverflow)) {
           currentLine = candidate
+          lineCharCount = candidateChars
         } else {
           if (currentLine.length > 0) {
-            pushCurrentLine()
+            flushCurrentLine()
           }
 
           let segment = ''
           for (const char of word) {
             const nextSegment = segment.length > 0 ? `${segment}${char}` : char
             const nextWidth = measureTextWidth(nextSegment, depth)
-            if (nextWidth <= maxContentWidth || segment.length === 0) {
+            const exceedsSegmentChars = depth >= 3 && nextSegment.length > maxChars
+            if ((!exceedsSegmentChars && nextWidth <= maxContentWidth) || segment.length === 0) {
               segment = nextSegment
             } else {
               pushSegment(segment)
@@ -230,11 +252,12 @@ export const MindMap: React.FC<MindMapProps> = ({
           }
 
           currentLine = segment
+          lineCharCount = segment.length
         }
       })
 
       if (currentLine.length > 0) {
-        pushCurrentLine()
+        flushCurrentLine()
       }
 
       const maxLineWidth = lineWidths.length > 0 ? Math.max(...lineWidths) : 0
@@ -269,20 +292,22 @@ export const MindMap: React.FC<MindMapProps> = ({
       const iconSymbol = node.data.icon ? ICON_SYMBOLS[node.data.icon] ?? '' : ''
       const baseText = node.data.text || ''
       const displayText = iconSymbol ? `${iconSymbol} ${baseText}` : baseText
-      const textWidth = measureTextWidth(displayText, node.depth)
-
       if (node.depth >= 3) {
-        const layoutWidth = textWidth + TEXT_NODE_RIGHT_PADDING
-        const hitWidth = Math.max(layoutWidth + 12, 80)
+        const { lines, maxLineWidth } = wrapTextForNode(displayText, node.depth)
+        const layoutWidth = Math.max(maxLineWidth + TEXT_NODE_RIGHT_PADDING, COMPACT_NODE_MIN_WIDTH)
+        const hitWidth = Math.max(layoutWidth + 6, COMPACT_NODE_MIN_WIDTH)
+        const lineSpacing = Math.max(COMPACT_NODE_HEIGHT, getRenderedFontSize(node.depth) + 4)
+        const textHeight = Math.max(COMPACT_NODE_HEIGHT, lines.length * lineSpacing)
         metricsMap.set(node.data.id, {
           displayText,
           boxWidth: layoutWidth,
-          boxHeight: MIN_BOX_HEIGHT,
+          boxHeight: textHeight,
           hitWidth,
-          layoutWidth
+          layoutWidth,
+          lines
         })
       } else {
-        const { lines, maxLineWidth } = wrapTextForBoxNode(displayText, node.depth)
+        const { lines, maxLineWidth } = wrapTextForNode(displayText, node.depth)
         const paddedWidth = Math.max(MIN_BOX_WIDTH, Math.min(MAX_BOX_WIDTH, maxLineWidth + BOX_HORIZONTAL_PADDING))
         const boxHeight = Math.max(MIN_BOX_HEIGHT, lines.length * LINE_HEIGHT + BOX_VERTICAL_PADDING)
         metricsMap.set(node.data.id, {
@@ -443,9 +468,18 @@ export const MindMap: React.FC<MindMapProps> = ({
         const metrics = metricsMap.get(d.data.id)
         return metrics ? metrics.hitWidth : 80
       })
-      .attr('height', d => d.depth >= 3 ? 24 : 0)
-      .attr('x', d => (d.depth >= 3 ? -6 : 0))
-      .attr('y', -12)
+      .attr('height', d => {
+        if (d.depth < 3) return 0
+        const metrics = metricsMap.get(d.data.id)
+        return metrics ? metrics.boxHeight : COMPACT_NODE_HEIGHT
+      })
+      .attr('x', d => (d.depth >= 3 ? -(TEXT_LEFT_PADDING + 4) : 0))
+      .attr('y', d => {
+        if (d.depth < 3) return -12
+        const metrics = metricsMap.get(d.data.id)
+        const height = metrics ? metrics.boxHeight : COMPACT_NODE_HEIGHT
+        return -height / 2
+      })
       .attr('fill', 'transparent')
       .style('display', d => d.depth >= 3 ? 'block' : 'none')
 
@@ -459,7 +493,7 @@ export const MindMap: React.FC<MindMapProps> = ({
       .style('font-size', d => {
         if (d.depth === 0) return `${fontSize + 2}px`
         if (d.depth === 1) return `${fontSize + 1}px`
-        if (d.depth >= 3) return `${Math.max(fontSize - 1, 12)}px`
+        if (d.depth >= 3) return `${Math.max(fontSize - 2, COMPACT_FONT_MIN)}px`
         return `${fontSize}px`
       })
       .style('font-weight', d => {
@@ -482,8 +516,21 @@ export const MindMap: React.FC<MindMapProps> = ({
       }
 
       if (d.depth >= 3) {
-        selection.attr('dy', 4)
-        selection.text(metrics.displayText)
+        const lines = metrics.lines ?? [metrics.displayText]
+        const lineSpacing = Math.max(COMPACT_NODE_HEIGHT, getRenderedFontSize(d.depth) + 4)
+        const totalHeight = lines.length * lineSpacing
+        selection.attr('dy', -totalHeight / 2 + lineSpacing / 2)
+        selection.attr('dx', 0)
+        selection.attr('x', 0)
+        selection.text(null)
+        lines.forEach((line, idx) => {
+          selection
+            .append('tspan')
+            .attr('x', TEXT_LEFT_PADDING + 1)
+            .attr('dy', idx === 0 ? 0 : lineSpacing)
+            .text(line)
+        })
+        selection.attr('text-anchor', 'start')
         return
       }
 
