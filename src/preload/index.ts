@@ -10,7 +10,9 @@ const api = {
   exportImage: (dataUrl: string, defaultName: string) => ipcRenderer.invoke('export-image', dataUrl, defaultName),
   newWindow: () => ipcRenderer.invoke('new-window'),
   onOpenFile: (callback: (data: { filePath: string; data: string }) => void) => {
-    ipcRenderer.on('open-file', (_, data) => callback(data))
+    const handler = (_: Electron.IpcRendererEvent, data: { filePath: string; data: string }) => callback(data)
+    ipcRenderer.on('open-file', handler)
+    return () => ipcRenderer.removeListener('open-file', handler)
   }
 }
 

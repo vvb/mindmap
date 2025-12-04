@@ -4,6 +4,52 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import fs from 'fs'
 
+const sendMenuEventToFocused = (channel: string) => {
+  const focused = BrowserWindow.getFocusedWindow()
+  if (focused) {
+    focused.webContents.send(channel)
+  }
+}
+
+let openDialogInProgress = false
+
+const openMindmapFromDialog = async (targetWindow?: BrowserWindow | null) => {
+  if (openDialogInProgress) {
+    return { success: false, error: 'dialog-in-progress' }
+  }
+
+  openDialogInProgress = true
+  try {
+    const options: Electron.OpenDialogOptions = {
+      title: 'Open Mindmap',
+      filters: [
+        { name: 'Mindmap Files', extensions: ['json'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    }
+
+    const dialogPromise = targetWindow
+      ? dialog.showOpenDialog(targetWindow, options)
+      : dialog.showOpenDialog(options)
+
+    const { canceled, filePaths } = await dialogPromise
+
+    if (!canceled && filePaths && filePaths.length > 0) {
+      const filePath = filePaths[0]
+      const data = fs.readFileSync(filePath, 'utf-8')
+      return { success: true, filePath, data }
+    }
+
+    return { success: false }
+  } catch (error) {
+    console.error('Failed to open mindmap file:', error)
+    return { success: false, error: (error as Error).message }
+  } finally {
+    openDialogInProgress = false
+  }
+}
+
 // Store the file to open on startup
 let fileToOpen: string | null = null
 
@@ -81,39 +127,38 @@ function createMenu(): void {
         {
           label: 'New',
           accelerator: 'CmdOrCtrl+N',
-          click: () => {
-            BrowserWindow.getFocusedWindow()?.webContents.send('menu-new')
-          }
+          click: () => sendMenuEventToFocused('menu-new')
         },
         {
           label: 'Open...',
           accelerator: 'CmdOrCtrl+O',
-          click: () => {
-            BrowserWindow.getFocusedWindow()?.webContents.send('menu-open')
+          click: async () => {
+            const focused = BrowserWindow.getFocusedWindow()
+            const result = await openMindmapFromDialog(focused)
+            if (result.success && result.data && result.filePath && focused) {
+              focused.webContents.send('open-file', {
+                filePath: result.filePath,
+                data: result.data
+              })
+            }
           }
         },
         { type: 'separator' as const },
         {
           label: 'Save',
           accelerator: 'CmdOrCtrl+S',
-          click: () => {
-            BrowserWindow.getFocusedWindow()?.webContents.send('menu-save')
-          }
+          click: () => sendMenuEventToFocused('menu-save')
         },
         {
           label: 'Save As...',
           accelerator: 'CmdOrCtrl+Shift+S',
-          click: () => {
-            BrowserWindow.getFocusedWindow()?.webContents.send('menu-save-as')
-          }
+          click: () => sendMenuEventToFocused('menu-save-as')
         },
         { type: 'separator' as const },
         {
           label: 'Export as Image...',
           accelerator: 'CmdOrCtrl+E',
-          click: () => {
-            BrowserWindow.getFocusedWindow()?.webContents.send('menu-export')
-          }
+          click: () => sendMenuEventToFocused('menu-export')
         },
         { type: 'separator' as const },
         ...(isMac ? [] : [
@@ -259,21 +304,9 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('load-file', async () => {
-    const { filePaths } = await dialog.showOpenDialog({
-      title: 'Open Mindmap',
-      filters: [
-        { name: 'Mindmap Files', extensions: ['json'] },
-        { name: 'All Files', extensions: ['*'] }
-      ],
-      properties: ['openFile']
-    })
-
-    if (filePaths && filePaths.length > 0) {
-      const data = fs.readFileSync(filePaths[0], 'utf-8')
-      return { success: true, data, filePath: filePaths[0] }
-    }
-    return { success: false }
+  ipcMain.handle('load-file', async (event) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender)
+    return openMindmapFromDialog(senderWindow)
   })
 
   ipcMain.handle('reload-file', async (_, filePath: string) => {
@@ -313,6 +346,7 @@ app.whenReady().then(() => {
     createWindow()
     return { success: true }
   })
+
 
   // Create the application menu
   createMenu()

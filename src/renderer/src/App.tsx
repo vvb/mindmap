@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { MindMap } from './components/MindMap'
 import { Toolbar } from './components/Toolbar'
 import { HelpPanel } from './components/HelpPanel'
@@ -33,6 +33,40 @@ function App(): React.JSX.Element {
 
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const [showHelp, setShowHelp] = useState(false)
+  const dialogLocksRef = useRef({ load: false, saveAs: false, export: false })
+
+  const normalizeMindMapNode = useCallback((node: MindMapNode) => {
+    if (!Array.isArray(node.children)) {
+      node.children = []
+    }
+    if (node.collapsed === undefined) {
+      node.collapsed = false
+    }
+    if (node.manualPosition === undefined) {
+      node.manualPosition = false
+    }
+    if (!node.icon || !NODE_ICON_VALUES.includes(node.icon)) {
+      node.icon = 'none'
+    }
+    node.children.forEach(child => normalizeMindMapNode(child))
+  }, [])
+
+  const applyLoadedMindMap = useCallback((loadedRoot: MindMapNode, filePath?: string) => {
+    normalizeMindMapNode(loadedRoot)
+    const snapshot = JSON.parse(JSON.stringify(loadedRoot)) as MindMapNode
+
+    setState(prev => ({
+      ...prev,
+      root: loadedRoot,
+      history: [snapshot],
+      historyIndex: 0,
+      selectedNodeId: loadedRoot.id
+    }))
+    setEditingNodeId(null)
+    if (filePath) {
+      currentFilePathRef.current = filePath
+    }
+  }, [normalizeMindMapNode, setState, setEditingNodeId, currentFilePathRef])
 
   const selectedNode = state.selectedNodeId ? findNodeById(state.selectedNodeId) : null
   const selectedNodeHasChildren = !!(selectedNode && selectedNode.children.length > 0)
@@ -111,11 +145,17 @@ function App(): React.JSX.Element {
   }, [serializeMindMap, currentFilePathRef])
 
   const handleSaveAs = useCallback(async () => {
-    const data = serializeMindMap()
-    const result = await window.api.saveFileAs(data)
-    if (result.success && result.filePath) {
-      currentFilePathRef.current = result.filePath
-      console.log('Saved as:', result.filePath)
+    if (dialogLocksRef.current.saveAs) return
+    dialogLocksRef.current.saveAs = true
+    try {
+      const data = serializeMindMap()
+      const result = await window.api.saveFileAs(data)
+      if (result.success && result.filePath) {
+        currentFilePathRef.current = result.filePath
+        console.log('Saved as:', result.filePath)
+      }
+    } finally {
+      dialogLocksRef.current.saveAs = false
     }
   }, [serializeMindMap, currentFilePathRef])
 
@@ -127,48 +167,23 @@ function App(): React.JSX.Element {
 
   // Load file
   const handleLoad = useCallback(async () => {
-    const result = await window.api.loadFile()
-    if (result.success && result.data) {
-      try {
-        const loadedRoot = JSON.parse(result.data) as MindMapNode
-
-        const normalizeNode = (node: MindMapNode) => {
-          if (!Array.isArray(node.children)) {
-            node.children = []
-          }
-          if (node.collapsed === undefined) {
-            node.collapsed = false
-          }
-          if (node.manualPosition === undefined) {
-            node.manualPosition = false
-          }
-          if (!node.icon || !NODE_ICON_VALUES.includes(node.icon)) {
-            node.icon = 'none'
-          }
-          node.children.forEach(child => normalizeNode(child))
+    if (dialogLocksRef.current.load) return
+    dialogLocksRef.current.load = true
+    try {
+      const result = await window.api.loadFile()
+      if (result.success && result.data) {
+        try {
+          const loadedRoot = JSON.parse(result.data) as MindMapNode
+          applyLoadedMindMap(loadedRoot, result.filePath)
+          console.log('Loaded from:', result.filePath)
+        } catch (error) {
+          console.error('Failed to parse mindmap file:', error)
         }
-
-        normalizeNode(loadedRoot)
-
-        const historyRoot = JSON.parse(JSON.stringify(loadedRoot)) as MindMapNode
-
-        setState(prev => ({
-          ...prev,
-          root: loadedRoot,
-          history: [historyRoot],
-          historyIndex: 0,
-          selectedNodeId: loadedRoot.id
-        }))
-        setEditingNodeId(null)
-        if (result.filePath) {
-          currentFilePathRef.current = result.filePath
-        }
-        console.log('Loaded from:', result.filePath)
-      } catch (error) {
-        console.error('Failed to parse mindmap file:', error)
       }
+    } finally {
+      dialogLocksRef.current.load = false
     }
-  }, [setState, currentFilePathRef])
+  }, [applyLoadedMindMap])
 
   // Reload current file
   const handleReload = useCallback(async () => {
@@ -182,35 +197,7 @@ function App(): React.JSX.Element {
     if (result.success && result.data) {
       try {
         const loadedRoot = JSON.parse(result.data) as MindMapNode
-
-        const normalizeNode = (node: MindMapNode) => {
-          if (!Array.isArray(node.children)) {
-            node.children = []
-          }
-          if (node.collapsed === undefined) {
-            node.collapsed = false
-          }
-          if (node.manualPosition === undefined) {
-            node.manualPosition = false
-          }
-          if (!node.icon || !NODE_ICON_VALUES.includes(node.icon)) {
-            node.icon = 'none'
-          }
-          node.children.forEach(child => normalizeNode(child))
-        }
-
-        normalizeNode(loadedRoot)
-
-        const historyRoot = JSON.parse(JSON.stringify(loadedRoot)) as MindMapNode
-
-        setState(prev => ({
-          ...prev,
-          root: loadedRoot,
-          history: [historyRoot],
-          historyIndex: 0,
-          selectedNodeId: loadedRoot.id
-        }))
-        setEditingNodeId(null)
+        applyLoadedMindMap(loadedRoot, result.filePath)
         console.log('Reloaded from:', result.filePath)
       } catch (error) {
         console.error('Failed to parse mindmap file:', error)
@@ -218,16 +205,21 @@ function App(): React.JSX.Element {
     } else if (result.error) {
       console.error('Failed to reload file:', result.error)
     }
-  }, [setState, currentFilePathRef])
+  }, [applyLoadedMindMap])
 
   // Export as image
   const handleExport = useCallback(async () => {
+    if (dialogLocksRef.current.export) return
     const svg = document.querySelector('svg')
     if (!svg) return
+    dialogLocksRef.current.export = true
 
     // Get the main group element that contains all nodes
     const mainGroup = svg.querySelector('g')
-    if (!mainGroup) return
+    if (!mainGroup) {
+      dialogLocksRef.current.export = false
+      return
+    }
 
     try {
       // Get the bounding box of all content
@@ -263,7 +255,10 @@ function App(): React.JSX.Element {
       // Create canvas for high-resolution export
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')
-      if (!ctx) return
+      if (!ctx) {
+        dialogLocksRef.current.export = false
+        return
+      }
 
       canvas.width = exportWidth
       canvas.height = exportHeight
@@ -271,16 +266,23 @@ function App(): React.JSX.Element {
       const img = new Image()
 
       img.onload = async () => {
-        // Scale the context for high resolution
-        ctx.scale(scale, scale)
-        ctx.drawImage(img, 0, 0, contentWidth, contentHeight)
+        try {
+          // Scale the context for high resolution
+          ctx.scale(scale, scale)
+          ctx.drawImage(img, 0, 0, contentWidth, contentHeight)
 
-        const dataUrl = canvas.toDataURL('image/png')
-        await window.api.exportImage(dataUrl, 'mindmap.png')
+          const dataUrl = canvas.toDataURL('image/png')
+          await window.api.exportImage(dataUrl, 'mindmap.png')
+        } catch (error) {
+          console.error('Export failed:', error)
+        } finally {
+          dialogLocksRef.current.export = false
+        }
       }
 
       img.onerror = (error) => {
         console.error('Failed to load SVG for export:', error)
+        dialogLocksRef.current.export = false
       }
 
       // Use btoa with proper encoding for SVG
@@ -288,31 +290,43 @@ function App(): React.JSX.Element {
       img.src = 'data:image/svg+xml;base64,' + base64SVG
     } catch (error) {
       console.error('Export failed:', error)
+      dialogLocksRef.current.export = false
     }
   }, [])
 
   // Listen for menu events
   useEffect(() => {
-    const handleMenuNew = () => handleNew()
-    const handleMenuOpen = () => handleLoad()
-    const handleMenuSave = () => handleSave()
-    const handleMenuSaveAs = () => handleSaveAs()
-    const handleMenuExport = () => handleExport()
+    const isFocusedWindow = () => typeof document !== 'undefined' && document.hasFocus()
+
+    const handleMenuNew = () => {
+      if (!isFocusedWindow()) return
+      handleNew()
+    }
+    const handleMenuSave = () => {
+      if (!isFocusedWindow()) return
+      handleSave()
+    }
+    const handleMenuSaveAs = () => {
+      if (!isFocusedWindow()) return
+      handleSaveAs()
+    }
+    const handleMenuExport = () => {
+      if (!isFocusedWindow()) return
+      handleExport()
+    }
 
     window.electron.ipcRenderer.on('menu-new', handleMenuNew)
-    window.electron.ipcRenderer.on('menu-open', handleMenuOpen)
     window.electron.ipcRenderer.on('menu-save', handleMenuSave)
     window.electron.ipcRenderer.on('menu-save-as', handleMenuSaveAs)
     window.electron.ipcRenderer.on('menu-export', handleMenuExport)
 
     return () => {
       window.electron.ipcRenderer.removeListener('menu-new', handleMenuNew)
-      window.electron.ipcRenderer.removeListener('menu-open', handleMenuOpen)
       window.electron.ipcRenderer.removeListener('menu-save', handleMenuSave)
       window.electron.ipcRenderer.removeListener('menu-save-as', handleMenuSaveAs)
       window.electron.ipcRenderer.removeListener('menu-export', handleMenuExport)
     }
-  }, [handleNew, handleLoad, handleSave, handleSaveAs, handleExport])
+  }, [handleNew, handleSave, handleSaveAs, handleExport])
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -526,28 +540,24 @@ function App(): React.JSX.Element {
 
   // Listen for files opened from outside (double-click, drag-drop, etc.)
   useEffect(() => {
-    window.api.onOpenFile(({ filePath, data }) => {
+    const unsubscribe = window.api.onOpenFile(({ filePath, data }) => {
       try {
-        const parsed = JSON.parse(data)
-        setState({
-          ...state,
-          rootNode: parsed,
-          selectedNodeId: parsed.id,
-          historyIndex: 0,
-          history: [parsed]
-        })
-        currentFilePathRef.current = filePath
+        const parsed = JSON.parse(data) as MindMapNode
+        applyLoadedMindMap(parsed, filePath)
         console.log('Opened file from external:', filePath)
       } catch (error) {
         console.error('Failed to parse opened file:', error)
       }
     })
-  }, [setState, state, currentFilePathRef])
+
+    return () => {
+      unsubscribe()
+    }
+  }, [applyLoadedMindMap])
 
   return (
     <div className={`w-screen h-screen flex flex-col overflow-hidden theme-${theme}`}>
       <Toolbar
-        onNew={handleNew}
         onSave={handleSave}
         onSaveAs={handleSaveAs}
         onLoad={handleLoad}

@@ -2,7 +2,6 @@ import React from 'react'
 import { NodeIcon, MindMapTheme } from '../types/mindmap'
 
 interface ToolbarProps {
-  onNew: () => void
   onSave: () => void
   onSaveAs: () => void
   onLoad: () => void
@@ -63,7 +62,6 @@ const FONT_OPTIONS: Array<{ label: string; value: string }> = [
 ]
 
 export const Toolbar: React.FC<ToolbarProps> = ({
-  onNew,
   onSave,
   onSaveAs,
   onLoad,
@@ -125,13 +123,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     >
       {/* File operations */}
       <div className={`flex items-center gap-1 border-r ${dividerClass} pr-2`}>
-        <button
-          onClick={onNew}
-          className={baseButton}
-          title="New (Cmd+N)"
-        >
-          🆕 New
-        </button>
         <button
           onClick={onLoad}
           className={baseButton}
