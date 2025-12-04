@@ -45,7 +45,7 @@ const LINK_COLOR_MAP: Record<string, string> = {
   '#E0F7FA': '#0097A7'  // Cyan -> Cyan
 }
 
-const COLLAPSE_TOGGLE_RADIUS = 9
+const COLLAPSE_TOGGLE_RADIUS = 4
 const AUTO_LAYOUT_HORIZONTAL_GAP = 80
 const TEXT_NODE_HORIZONTAL_GAP = 24
 const TEXT_LEFT_PADDING = 2
@@ -502,7 +502,7 @@ export const MindMap: React.FC<MindMapProps> = ({
         return '500'
       })
       .style('text-decoration', d => (d.depth >= 3 && d.data.id === selectedNodeId ? 'underline' : 'none'))
-      .style('pointer-events', 'none')
+      .style('cursor', 'pointer')
       .style('display', d => d.data.id === editingNodeId ? 'none' : 'block')
 
     textSelection.each(function(d) {
@@ -683,71 +683,104 @@ export const MindMap: React.FC<MindMapProps> = ({
 
     // Track if we're dragging to prevent click events
     let isDragging = false
+    let hasMoved = false
     let dragStartTime = 0
+    let dragStartNode: string | null = null
+    let dragStartX = 0
+    let dragStartY = 0
+    let accumulatedDx = 0
+    let accumulatedDy = 0
+    const DRAG_THRESHOLD = 10 // pixels - minimum movement to be considered a drag
+    const DRAG_TIME_THRESHOLD = 120 // ms - minimum press duration before we treat movement as drag
 
     // Add drag behavior for nodes
     const dragBehavior = d3.drag<SVGGElement, D3Node>()
-      .on('start', function(event, _node) {
+      .on('start', function(event, d) {
         isDragging = false
+        hasMoved = false
         dragStartTime = Date.now()
+        dragStartNode = d.data.id
+        dragStartX = d.x!
+        dragStartY = d.y!
+        accumulatedDx = 0
+        accumulatedDy = 0
         d3.select(this).raise()
         event.sourceEvent.stopPropagation()
+
+        // Select node immediately on mousedown for instant feedback
+        onNodeClick(d.data.id)
       })
       .on('drag', function(event, d) {
-        isDragging = true
+        // Accumulate the drag deltas
+        accumulatedDx += event.dx
+        accumulatedDy += event.dy
 
-        // Update the node's display position
-        d.x! += event.dy
-        d.y! += event.dx
+        // Calculate total distance moved from start
+        const distanceFromStart = Math.sqrt(accumulatedDx * accumulatedDx + accumulatedDy * accumulatedDy)
+        const elapsed = Date.now() - dragStartTime
 
-        // Update visual position
-        d3.select(this).attr('transform', `translate(${d.y},${d.x})`)
+        // Only start dragging if we've moved beyond the distance AND time thresholds
+        if (!hasMoved && distanceFromStart > DRAG_THRESHOLD && elapsed > DRAG_TIME_THRESHOLD) {
+          hasMoved = true
+          isDragging = true
+        }
 
-        // Update all connected links in real-time
-        linkGroup.selectAll('path')
-          .attr('d', function(linkData: any) {
-            const source = linkData.source as D3Node
-            const target = linkData.target as D3Node
-            return getPath(source, target)
-          })
+        if (hasMoved) {
+          // Update the node's display position
+          d.x! += event.dy
+          d.y! += event.dx
+
+          // Update visual position
+          d3.select(this).attr('transform', `translate(${d.y},${d.x})`)
+
+          // Update all connected links in real-time
+          linkGroup.selectAll('path')
+            .attr('d', function(linkData: any) {
+              const source = linkData.source as D3Node
+              const target = linkData.target as D3Node
+              return getPath(source, target)
+            })
+        }
       })
       .on('end', function(_event, d) {
         const dragDuration = Date.now() - dragStartTime
+        const totalDistance = Math.sqrt(accumulatedDx * accumulatedDx + accumulatedDy * accumulatedDy)
+
+        console.log('Drag end:', { hasMoved, isDragging, dragDuration, totalDistance, threshold: DRAG_THRESHOLD })
 
         // Only persist position if it was actually dragged (not just a click)
-        if (isDragging && dragDuration > 100) {
+        if (hasMoved && isDragging && dragDuration > 100) {
           // Save the actual position (already in correct coordinates)
+          console.log('Saving position for node:', d.data.id)
           onNodePositionChange(d.data.id, d.x!, d.y!)
+        }
+
+        // Always reset to start position if we didn't actually drag
+        if (!hasMoved) {
+          console.log('Resetting position - was just a click')
+          d.x = dragStartX
+          d.y = dragStartY
+          d3.select(this).attr('transform', `translate(${d.y},${d.x})`)
         }
 
         // Reset dragging flag after a short delay to allow click to check it
         setTimeout(() => {
           isDragging = false
+          hasMoved = false
+          dragStartNode = null
+          accumulatedDx = 0
+          accumulatedDy = 0
         }, 10)
       })
 
     nodeElements.call(dragBehavior as any)
 
-    // Add click handlers after drag behavior
-    let clickTimeout: NodeJS.Timeout | null = null
-
-    nodeElements.on('click', (event, d) => {
+    // Add double-click handler for editing
+    nodeElements.on('dblclick', (event, d) => {
       event.stopPropagation()
-      // Only handle click if we weren't dragging
+      event.preventDefault()
       if (!isDragging) {
-        // Use timeout to distinguish between single and double click
-        if (clickTimeout) {
-          clearTimeout(clickTimeout)
-          clickTimeout = null
-          // Double click - start editing
-          onStartEditing(d.data.id)
-        } else {
-          // Single click - select node
-          clickTimeout = setTimeout(() => {
-            onNodeClick(d.data.id)
-            clickTimeout = null
-          }, 250)
-        }
+        onStartEditing(d.data.id)
       }
     })
 
