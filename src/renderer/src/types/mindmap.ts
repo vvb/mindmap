@@ -37,6 +37,12 @@ export interface MindMapPreferences {
   fontSize: number
 }
 
+export interface MindMapDocument {
+  version?: number
+  root: MindMapNode
+  preferences?: Partial<MindMapPreferences>
+}
+
 export interface MindMapState {
   root: MindMapNode
   selectedNodeId: string | null

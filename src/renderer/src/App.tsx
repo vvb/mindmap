@@ -3,7 +3,7 @@ import { MindMap } from './components/MindMap'
 import { Toolbar } from './components/Toolbar'
 import { HelpPanel } from './components/HelpPanel'
 import { useMindMap } from './hooks/useMindMap'
-import { NodeIcon, MindMapNode, NODE_ICON_VALUES } from './types/mindmap'
+import { NodeIcon, MindMapDocument, MindMapNode, MindMapPreferences, NODE_ICON_VALUES } from './types/mindmap'
 
 const SYSTEM_FONT_FALLBACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
 
@@ -21,6 +21,31 @@ const DEFAULT_FONT_OPTIONS: Array<{ label: string; value: string }> = [
 const createFontStack = (name: string): string => {
   const sanitized = name.replace(/'/g, "\\'")
   return `'${sanitized}', ${SYSTEM_FONT_FALLBACK}`
+}
+
+const CURRENT_DOCUMENT_VERSION = 2
+
+interface LoadedMindMapData {
+  root: MindMapNode
+  preferences?: Partial<MindMapPreferences>
+}
+
+const parseMindMapData = (data: string): LoadedMindMapData => {
+  const parsed = JSON.parse(data) as unknown
+
+  if (parsed && typeof parsed === 'object' && parsed !== null && 'root' in (parsed as Record<string, unknown>)) {
+    const candidate = parsed as MindMapDocument
+    if (candidate.root && typeof candidate.root === 'object') {
+      return {
+        root: candidate.root as MindMapNode,
+        preferences: candidate.preferences
+      }
+    }
+  }
+
+  return {
+    root: parsed as MindMapNode
+  }
 }
 
 function App(): React.JSX.Element {
@@ -70,22 +95,51 @@ function App(): React.JSX.Element {
     node.children.forEach(child => normalizeMindMapNode(child))
   }, [])
 
-  const applyLoadedMindMap = useCallback((loadedRoot: MindMapNode, filePath?: string) => {
-    normalizeMindMapNode(loadedRoot)
-    const snapshot = JSON.parse(JSON.stringify(loadedRoot)) as MindMapNode
+  const applyLoadedMindMap = useCallback((document: LoadedMindMapData, filePath?: string) => {
+    const { root, preferences } = document
+
+    normalizeMindMapNode(root)
+    const snapshot = JSON.parse(JSON.stringify(root)) as MindMapNode
 
     setState(prev => ({
       ...prev,
-      root: loadedRoot,
+      root,
       history: [snapshot],
       historyIndex: 0,
-      selectedNodeId: loadedRoot.id
+      selectedNodeId: root.id
     }))
     setEditingNodeId(null)
     if (filePath) {
       currentFilePathRef.current = filePath
     }
-  }, [normalizeMindMapNode, setState, setEditingNodeId, currentFilePathRef])
+
+    if (preferences && typeof preferences === 'object') {
+      const { theme: loadedTheme, fontFamily: loadedFontFamily, fontSize: loadedFontSize } = preferences
+
+      if ((loadedTheme === 'dark' || loadedTheme === 'light') && loadedTheme !== state.preferences.theme) {
+        setTheme(loadedTheme)
+      }
+
+      if (typeof loadedFontFamily === 'string' && loadedFontFamily.trim().length > 0 && loadedFontFamily !== state.preferences.fontFamily) {
+        setFontFamily(loadedFontFamily)
+      }
+
+      if (typeof loadedFontSize === 'number' && Number.isFinite(loadedFontSize) && loadedFontSize !== state.preferences.fontSize) {
+        setFontSize(loadedFontSize)
+      }
+    }
+  }, [
+    normalizeMindMapNode,
+    setState,
+    setEditingNodeId,
+    currentFilePathRef,
+    setTheme,
+    setFontFamily,
+    setFontSize,
+    state.preferences.fontFamily,
+    state.preferences.fontSize,
+    state.preferences.theme
+  ])
 
   const selectedNode = state.selectedNodeId ? findNodeById(state.selectedNodeId) : null
   const selectedNodeHasChildren = !!(selectedNode && selectedNode.children.length > 0)
@@ -172,7 +226,24 @@ function App(): React.JSX.Element {
   }, [])
 
   // Save file
-  const serializeMindMap = useCallback(() => JSON.stringify(state.root, null, 2), [state.root])
+  const serializeMindMap = useCallback(() => {
+    const document: MindMapDocument = {
+      version: CURRENT_DOCUMENT_VERSION,
+      root: state.root,
+      preferences: {
+        theme: state.preferences.theme,
+        fontFamily: state.preferences.fontFamily,
+        fontSize: state.preferences.fontSize
+      }
+    }
+
+    return JSON.stringify(document, null, 2)
+  }, [
+    state.root,
+    state.preferences.fontFamily,
+    state.preferences.fontSize,
+    state.preferences.theme
+  ])
 
   const handleSave = useCallback(async () => {
     const data = serializeMindMap()
@@ -224,8 +295,8 @@ function App(): React.JSX.Element {
       const result = await window.api.loadFile()
       if (result.success && result.data) {
         try {
-          const loadedRoot = JSON.parse(result.data) as MindMapNode
-          applyLoadedMindMap(loadedRoot, result.filePath)
+          const loadedDocument = parseMindMapData(result.data)
+          applyLoadedMindMap(loadedDocument, result.filePath)
           console.log('Loaded from:', result.filePath)
         } catch (error) {
           console.error('Failed to parse mindmap file:', error)
@@ -247,8 +318,8 @@ function App(): React.JSX.Element {
     const result = await window.api.reloadFile(currentPath)
     if (result.success && result.data) {
       try {
-        const loadedRoot = JSON.parse(result.data) as MindMapNode
-        applyLoadedMindMap(loadedRoot, result.filePath)
+        const loadedDocument = parseMindMapData(result.data)
+        applyLoadedMindMap(loadedDocument, result.filePath)
         console.log('Reloaded from:', result.filePath)
       } catch (error) {
         console.error('Failed to parse mindmap file:', error)
@@ -593,7 +664,7 @@ function App(): React.JSX.Element {
   useEffect(() => {
     const unsubscribe = window.api.onOpenFile(({ filePath, data }) => {
       try {
-        const parsed = JSON.parse(data) as MindMapNode
+        const parsed = parseMindMapData(data)
         applyLoadedMindMap(parsed, filePath)
         console.log('Opened file from external:', filePath)
       } catch (error) {
