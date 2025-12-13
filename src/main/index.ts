@@ -4,6 +4,9 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import fs from 'fs'
 
+// Set app name early for macOS menu bar
+app.name = 'Mindmap'
+
 const sendMenuEventToFocused = (channel: string) => {
   const focused = BrowserWindow.getFocusedWindow()
   if (focused) {
@@ -229,9 +232,6 @@ function createMenu(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Set app name
-  app.name = 'Mindmap'
-
   // Allow multiple instances of the app
   app.requestSingleInstanceLock = () => true
 
