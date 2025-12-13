@@ -196,9 +196,9 @@ function createMenu(): void {
         { role: 'forceReload' as const },
         { role: 'toggleDevTools' as const },
         { type: 'separator' as const },
-        { role: 'resetZoom' as const },
-        { role: 'zoomIn' as const },
-        { role: 'zoomOut' as const },
+        { role: 'resetZoom' as const, accelerator: 'CmdOrCtrl+0' },
+        { role: 'zoomIn' as const, accelerator: 'CmdOrCtrl+Plus' },
+        { role: 'zoomOut' as const, accelerator: 'CmdOrCtrl+1' },
         { type: 'separator' as const },
         { role: 'togglefullscreen' as const }
       ]

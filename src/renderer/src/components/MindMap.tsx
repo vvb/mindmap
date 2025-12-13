@@ -637,6 +637,11 @@ export const MindMap: React.FC<MindMapProps> = ({
     }
 
     const getTextColor = (node: D3Node) => {
+      // If the node has a custom text color, use it
+      if (node.data.textColor) {
+        return node.data.textColor
+      }
+
       // For level 3+ nodes (text-only nodes), use solid dark/light colors
       if (node.depth >= 3) {
         return isDark ? '#93C5FD' : '#1F2937'

@@ -71,6 +71,7 @@ function App(): React.JSX.Element {
     setTheme,
     setFontFamily,
     setFontSize,
+    updateNodeTextColor,
     resetMindMap
   } = useMindMap()
 
@@ -145,6 +146,7 @@ function App(): React.JSX.Element {
   const selectedNodeHasChildren = !!(selectedNode && selectedNode.children.length > 0)
   const selectedNodeCollapsed = !!(selectedNode && selectedNode.collapsed)
   const selectedNodeIcon = selectedNode?.icon
+  const selectedNodeTextColor = selectedNode?.textColor
   const { theme, fontFamily, fontSize } = state.preferences
   const isDark = theme === 'dark'
 
@@ -660,6 +662,12 @@ function App(): React.JSX.Element {
     setFontSize(size)
   }, [setFontSize])
 
+  const handleTextColorChange = useCallback((color: string | undefined) => {
+    if (state.selectedNodeId) {
+      updateNodeTextColor(state.selectedNodeId, color)
+    }
+  }, [state.selectedNodeId, updateNodeTextColor])
+
   // Listen for files opened from outside (double-click, drag-drop, etc.)
   useEffect(() => {
     const unsubscribe = window.api.onOpenFile(({ filePath, data }) => {
@@ -680,15 +688,12 @@ function App(): React.JSX.Element {
   return (
     <div className={`w-screen h-screen flex flex-col overflow-hidden theme-${theme}`}>
       <Toolbar
-        onUndo={undo}
-        onRedo={redo}
         onAddNode={() => state.selectedNodeId && addNode(state.selectedNodeId)}
         onDeleteNode={() => state.selectedNodeId && deleteNode(state.selectedNodeId)}
         onChangeColor={(color) => state.selectedNodeId && updateNodeColor(state.selectedNodeId, color)}
+        onChangeTextColor={handleTextColorChange}
         onAutoLayout={handleAutoFit}
         onHelp={() => setShowHelp(true)}
-        canUndo={state.historyIndex > 0}
-        canRedo={state.historyIndex < state.history.length - 1}
         selectedNodeId={state.selectedNodeId}
         selectedNodeHasChildren={selectedNodeHasChildren}
         selectedNodeCollapsed={selectedNodeCollapsed}
@@ -698,6 +703,7 @@ function App(): React.JSX.Element {
         onExpandAll={handleExpandAll}
         onIconChange={handleIconChange}
         selectedNodeIcon={selectedNodeIcon}
+        selectedNodeTextColor={selectedNodeTextColor}
         theme={theme}
         onToggleTheme={handleToggleTheme}
         fontFamily={fontFamily}

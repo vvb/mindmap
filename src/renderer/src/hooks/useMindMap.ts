@@ -237,9 +237,19 @@ export const useMindMap = () => {
   const updateNodeColor = useCallback((nodeId: string, color: string) => {
     const newRoot = JSON.parse(JSON.stringify(state.root))
     const node = findNodeById(newRoot, nodeId)
-    
+
     if (node) {
       node.color = color
+      saveToHistory(newRoot)
+    }
+  }, [state.root, findNodeById, saveToHistory])
+
+  const updateNodeTextColor = useCallback((nodeId: string, textColor: string | undefined) => {
+    const newRoot = JSON.parse(JSON.stringify(state.root))
+    const node = findNodeById(newRoot, nodeId)
+
+    if (node) {
+      node.textColor = textColor
       saveToHistory(newRoot)
     }
   }, [state.root, findNodeById, saveToHistory])
@@ -453,6 +463,7 @@ export const useMindMap = () => {
     addSiblingNode,
     updateNodeText,
     updateNodeColor,
+    updateNodeTextColor,
     updateNodeIcon,
     updateNodePosition,
     resetAllPositions,

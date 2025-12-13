@@ -17,6 +17,7 @@ export interface MindMapNode {
   collapsed?: boolean
   icon?: NodeIcon
   manualPosition?: boolean
+  textColor?: string
 }
 
 export const NODE_ICON_VALUES: readonly NodeIcon[] = [
