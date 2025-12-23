@@ -286,6 +286,7 @@ export const MindMap: React.FC<MindMapProps> = ({
       hitWidth: number
       layoutWidth: number
       lines?: string[]
+      lineSpacing?: number
     }>()
 
     nodes.forEach(node => {
@@ -297,14 +298,19 @@ export const MindMap: React.FC<MindMapProps> = ({
         const layoutWidth = Math.max(maxLineWidth + TEXT_NODE_RIGHT_PADDING, COMPACT_NODE_MIN_WIDTH)
         const hitWidth = Math.max(layoutWidth + 6, COMPACT_NODE_MIN_WIDTH)
         const lineSpacing = Math.max(COMPACT_NODE_HEIGHT, getRenderedFontSize(node.depth) + 4)
-        const textHeight = Math.max(COMPACT_NODE_HEIGHT, lines.length * lineSpacing)
+        // For multi-line text: the text spans (lines.length - 1) * lineSpacing between first and last baseline
+        // We need to add extra space for the actual glyph height above first line and below last line
+        // Since lineSpacing already accounts for font size + padding, we use it as the base unit
+        const baselineSpan = (lines.length - 1) * lineSpacing
+        const textHeight = baselineSpan + lineSpacing  // Add one full lineSpacing for glyph height
         metricsMap.set(node.data.id, {
           displayText,
           boxWidth: layoutWidth,
           boxHeight: textHeight,
           hitWidth,
           layoutWidth,
-          lines
+          lines,
+          lineSpacing
         })
       } else {
         const { lines, maxLineWidth } = wrapTextForNode(displayText, node.depth)
@@ -325,9 +331,10 @@ export const MindMap: React.FC<MindMapProps> = ({
 
     // Collision detection and resolution
     const resolveCollisions = () => {
-      const VERTICAL_PADDING = 8 // Minimum vertical gap between nodes
+      const VERTICAL_PADDING = 32 // Minimum vertical gap between nodes
       const HORIZONTAL_OVERLAP_THRESHOLD = 50 // Only check nodes that are horizontally close
-      const MAX_ITERATIONS = 10 // Prevent infinite loops
+      const MAX_ITERATIONS = 20 // Prevent infinite loops
+      const MIN_OVERLAP_THRESHOLD = 0.1 // Ignore overlaps smaller than this (floating-point precision)
 
       // Helper to get all descendants of a node
       const getDescendants = (node: D3Node): D3Node[] => {
@@ -390,7 +397,10 @@ export const MindMap: React.FC<MindMapProps> = ({
         // Check if they overlap vertically
         if (bottom1 + VERTICAL_PADDING > top2 && top1 < bottom2 + VERTICAL_PADDING) {
           // Return the amount of overlap
-          return (bottom1 + VERTICAL_PADDING) - top2
+          const overlap = (bottom1 + VERTICAL_PADDING) - top2
+          if (overlap > MIN_OVERLAP_THRESHOLD) {
+            return overlap
+          }
         }
 
         return 0
@@ -535,7 +545,7 @@ export const MindMap: React.FC<MindMapProps> = ({
             const requiredGap = VERTICAL_PADDING
             const overlap = previousLowest + requiredGap - currentTop
 
-            if (overlap > 0) {
+            if (overlap > MIN_OVERLAP_THRESHOLD) {
               moveNodeAndDescendants(currentSibling, overlap)
               hadAdjustment = true
             }
@@ -763,8 +773,11 @@ export const MindMap: React.FC<MindMapProps> = ({
 
       if (d.depth >= 3) {
         const lines = metrics.lines ?? [metrics.displayText]
-        const lineSpacing = Math.max(COMPACT_NODE_HEIGHT, getRenderedFontSize(d.depth) + 4)
+        const lineSpacing = metrics.lineSpacing ?? Math.max(COMPACT_NODE_HEIGHT, getRenderedFontSize(d.depth) + 4)
         const offset = -((lines.length - 1) / 2) * lineSpacing
+
+
+
         selection.attr('dy', offset)
         selection.attr('dx', 0)
         selection.attr('x', 0)
